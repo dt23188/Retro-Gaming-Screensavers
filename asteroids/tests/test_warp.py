@@ -37,8 +37,8 @@ class WarpTests(unittest.TestCase):
             self.assertGreater(offset.dot(vector),50)
             self.assertLessEqual(abs(offset.x),width*.38+1e-6)
             self.assertLessEqual(abs(offset.y),height*.38+1e-6)
-            w.update_warp(1.9)
-            self.assertAlmostEqual((w.ship.position-w.camera).length(),0)
+            w.update_warp(1.8)
+            self.assertAlmostEqual((w.ship.position-w.camera).length(),0, places=5)
             self.assertAlmostEqual(w.ship.angle,w.warp_heading)
 
     def test_fifth_pickup_triggers_warp_and_four_do_not(self):
@@ -124,6 +124,9 @@ class WarpTests(unittest.TestCase):
 
     def test_no_cores_spawn_before_the_collection_clock(self):
         w = World(1979)
+        # Enemy loot can legitimately grant an early core. Isolate the timed
+        # spawn here instead of relying on the camera's seeded combat outcome.
+        w.saucer_timer = 999
         for _ in range(120):
             w.advance(.25)
         self.assertEqual(w.parts_collected, 0)

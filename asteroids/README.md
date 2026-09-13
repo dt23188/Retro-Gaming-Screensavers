@@ -4,6 +4,14 @@ Autonomous endless flight, shaded rocky asteroids, enemy fleets, tactical
 missiles/shields/radial blasts, enemy drops and smooth native-resolution warp
 travel. Starts in a 15-second warp, then arrives at an asteroid belt.
 
+The camera trails the ship so its screen position shifts with travel direction
+and speed, easing back toward center when it slows or reverses. Normal flight
+stays within 18% of the shorter screen dimension from center; warp cruise also
+drifts instead of holding the ship on the same pixels.
+
+Blaster rounds fire straight along the ship's nose without inheriting sideways
+drift. Missiles also launch forward before their homing guidance takes over.
+
 | System | Installer |
 | --- | --- |
 | Linux/Ubuntu | `bash install-linux.sh` |

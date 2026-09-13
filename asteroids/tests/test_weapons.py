@@ -1,10 +1,36 @@
 from pathlib import Path
-import sys, unittest
+import math, sys, unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from engine import World,Vec,Shot,Saucer,CorePart
+from engine import World,Vec,Shot,Saucer,CorePart,direction
 
 class WeaponTests(unittest.TestCase):
+    def test_player_projectiles_launch_along_nose_despite_sideways_drift(self):
+        for angle in (0, math.pi / 4, math.pi / 2, math.pi, -math.pi / 3):
+            for missile in (False, True):
+                with self.subTest(angle=angle, missile=missile):
+                    w = self.quiet()
+                    w.ship.angle = angle
+                    forward = direction(angle)
+                    sideways = Vec(-forward.y, forward.x)
+                    w.ship.velocity = sideways * 290 - forward * 40
+                    w.saucer = Saucer(Vec(120, 0), Vec(), False, cooldown=100)
+                    w.missile_ammo = 1
+                    if missile:
+                        self.assertTrue(w.launch_missile())
+                    else:
+                        w.fire()
+                    shot = w.shots[-1]
+                    offset = shot.position - w.ship.position
+                    self.assertAlmostEqual(offset.dot(sideways), 0)
+                    self.assertGreater(offset.dot(forward), 0)
+                    self.assertAlmostEqual(shot.velocity.dot(sideways), 0)
+                    self.assertAlmostEqual(shot.velocity.dot(forward), 750 if missile else 820)
+                    if not missile:
+                        start = shot.position
+                        w.step(.02)
+                        self.assertAlmostEqual((shot.position - start).dot(sideways), 0)
+
     def quiet(self):
         w=World(1979,640,360);w.rocks=[];w.parts=[];w.shots=[]
         w.ship.position=Vec(-250,150);w.ship.velocity=Vec();w.camera=Vec()

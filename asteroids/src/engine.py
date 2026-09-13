@@ -13,6 +13,9 @@ MAX_ROCKS = 180
 MAX_PARTICLES = 600
 MAX_PARTS = 16
 WARP_DURATION = 15.0
+CAMERA_FOLLOW_RATE = 2.5
+CAMERA_TRAIL_SECONDS = 0.35
+CAMERA_ROAM_FRACTION = 0.18
 FLEET_COLORS = {
     "ring": (0.20, 0.65, 1.0),
     "raider": (0.32, 0.92, 0.44),
@@ -417,7 +420,13 @@ class World:
             blend = t * t * (3 - 2 * t)
             offset = edge_offset * (1 - blend)
         else:
-            offset = Vec()
+            # Keep drifting during the long cruise instead of pinning the ship
+            # to the same screen pixels after the departure rush recenters it.
+            cruise_distance = min(
+                178.5 * (CAMERA_TRAIL_SECONDS + 1 / CAMERA_FOLLOW_RATE),
+                min(self.width, self.height) * CAMERA_ROAM_FRACTION,
+            )
+            offset = heading * (cruise_distance * (1 - math.exp(-(elapsed - 2.6) / 3)))
         self.camera = position - offset
         t = min(1, elapsed / 0.8)
         blend = t * t * (3 - 2 * t)
@@ -441,7 +450,7 @@ class World:
         self.ship.position = Vec(self.warp_destination.x, self.warp_destination.y)
         self.ship.velocity = direction(self.warp_heading) * 178.5
         self.ship.invulnerable = 2.5
-        self.camera = Vec(self.ship.position.x, self.ship.position.y)
+        # Keep the final warp framing; normal tracking takes over without a snap.
         self.sectors.clear()
         self.rocks, self.parts, self.shots, self.sparks = [], [], [], []
         self.saucer = None
@@ -578,7 +587,7 @@ class World:
                 ),
             )
         aim = (
-            intercept(target.position - ship.position, target.velocity - ship.velocity)
+            intercept(target.position - ship.position, target.velocity)
             if target
             else direction(self.route_angle)
         )
@@ -638,7 +647,8 @@ class World:
         self.shots.append(
             Shot(
                 nose,
-                direction(self.ship.angle) * 820 + self.ship.velocity,
+                # Blaster rounds follow the nose, without sideways ship drift.
+                direction(self.ship.angle) * 820,
                 previous=nose,
             )
         )
@@ -686,11 +696,11 @@ class World:
         if any(s.missile for s in self.shots):
             return False
         nose = self.ship.position + direction(self.ship.angle) * 20
-        heading = (enemy.position - nose).unit()
+        heading = direction(self.ship.angle)
         self.shots.append(
             Shot(
                 nose,
-                heading * 750 + self.ship.velocity,
+                heading * 750,
                 life=3.5,
                 previous=nose,
                 missile=True,
@@ -1020,14 +1030,24 @@ class World:
             spark.velocity = spark.velocity * math.exp(-1.4 * dt)
             spark.life -= dt
         self.sparks = [p for p in self.sparks if p.life > 0][-MAX_PARTICLES:]
-        # Smooth look-ahead keeps the ship visible and lets it roam beyond edges.
-        desired = self.ship.position + self.ship.velocity * 0.40
-        alpha = 1 - math.exp(-3.2 * dt)
-        self.camera = self.camera + (desired - self.camera) * alpha
+        self.update_camera(dt)
         self.stream_timer -= dt
         if self.stream_timer <= 0:
             self.stream()
             self.stream_timer = 0.35
+
+    def update_camera(self, dt):
+        """Let movement lead the camera, with a bounded, speed-dependent offset."""
+        velocity = Vec() if self.dead else self.ship.velocity
+        desired = self.ship.position - velocity * CAMERA_TRAIL_SECONDS
+        alpha = -math.expm1(-CAMERA_FOLLOW_RATE * max(0, dt))
+        self.camera = self.camera + (desired - self.camera) * alpha
+        # A radial bound preserves the travel bearing on portrait and ultrawide
+        # displays, and keeps the ship visible after a resize or teleport.
+        offset = self.ship.position - self.camera
+        limit = min(self.width, self.height) * CAMERA_ROAM_FRACTION
+        if offset.length() > limit:
+            self.camera = self.ship.position - offset.unit() * limit
 
     def advance(self, dt):
         remaining = min(max(0, dt), 0.25)
