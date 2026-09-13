@@ -177,6 +177,7 @@ class World:
 
     def __init__(self, seed=0, width=1280, height=900, start_in_warp=False):
         self.seed, self.width, self.height = seed, width, height
+        self.display_regions = []
         self.rng = random.Random(seed)
         self.session = 0
         self.fleet_bag = []
@@ -231,6 +232,34 @@ class World:
     def resize(self, width, height):
         self.width, self.height = max(100, width), max(100, height)
         self.stream_timer = 0
+
+    def set_display_regions(self, regions):
+        """Monitor rectangles (x, y, width, height) in combined logical pixels."""
+        self.display_regions = list(regions)
+        self.constrain_camera()
+
+    def constrain_camera(self):
+        # Unequal or offset screens leave holes in the desktop bounding box.
+        # Only constrain against the visible union, never an internal seam.
+        if len(self.display_regions) < 2:
+            return
+        point = self.ship.position - self.camera + Vec(self.width / 2, self.height / 2)
+        def visible(p):
+            return any(x <= p.x <= x + width and y <= p.y <= y + height
+                       for x, y, width, height in self.display_regions)
+
+        # Keep the hull, not just its center, visible at the outer outline.
+        # Probes may belong to different monitors when crossing a shared seam.
+        margin = 30
+        if all(visible(point + direction(i * TAU / 8) * margin) for i in range(8)):
+            return
+        candidates = [
+            Vec(max(x + margin, min(x + width - margin, point.x)),
+                max(y + margin, min(y + height - margin, point.y)))
+            for x, y, width, height in self.display_regions
+        ]
+        closest = min(candidates, key=lambda p: (p - point).length())
+        self.camera = self.camera + point - closest
 
     def sector_seed(self, x, y):
         return (
@@ -428,6 +457,7 @@ class World:
             )
             offset = heading * (cruise_distance * (1 - math.exp(-(elapsed - 2.6) / 3)))
         self.camera = position - offset
+        self.constrain_camera()
         t = min(1, elapsed / 0.8)
         blend = t * t * (3 - 2 * t)
         self.ship.angle = (
@@ -1040,6 +1070,27 @@ class World:
         """Let movement lead the camera, with a bounded, speed-dependent offset."""
         velocity = Vec() if self.dead else self.ship.velocity
         desired = self.ship.position - velocity * CAMERA_TRAIL_SECONDS
+        if len(self.display_regions) > 1:
+            # Longer travel before following lets the ship cross monitor seams.
+            # Each axis uses the entire desktop extent, not one monitor's size.
+            limits = Vec(self.width * 0.40, self.height * 0.40)
+            delta = desired - self.camera
+            rates = [
+                CAMERA_FOLLOW_RATE if abs(speed) < 1 else
+                min(CAMERA_FOLLOW_RATE, 297.5 / max(1, extent * .85))
+                for speed, extent in ((velocity.x, limits.x), (velocity.y, limits.y))
+            ]
+            self.camera = self.camera + Vec(
+                delta.x * -math.expm1(-rates[0] * max(0, dt)),
+                delta.y * -math.expm1(-rates[1] * max(0, dt)),
+            )
+            offset = self.ship.position - self.camera
+            self.camera = self.ship.position - Vec(
+                max(-limits.x, min(limits.x, offset.x)),
+                max(-limits.y, min(limits.y, offset.y)),
+            )
+            self.constrain_camera()
+            return
         alpha = -math.expm1(-CAMERA_FOLLOW_RATE * max(0, dt))
         self.camera = self.camera + (desired - self.camera) * alpha
         # A radial bound preserves the travel bearing on portrait and ultrawide

@@ -1,7 +1,7 @@
 """Portable fullscreen host and native-screensaver frame worker."""
 import argparse, json, os, random, signal, subprocess, sys, tempfile, time
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer, QPointF
+from PySide6.QtCore import Qt, QTimer, QPointF, QRect
 from PySide6.QtGui import QImage, QPainter, QWindow
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
 import qt_backend as backend
@@ -68,6 +68,35 @@ class Simulation:
             except subprocess.TimeoutExpired:self.process.kill();self.process.wait()
         if self.temp:self.temp.cleanup()
 
+class AsteroidsDesktop:
+    """One clock/world/camera, painted through a viewport for each monitor."""
+    def __init__(self, geometries, seed=None):
+        self.bounds = QRect()
+        for geometry in geometries:
+            self.bounds = self.bounds.united(geometry)
+        self.regions = [g.translated(-self.bounds.topLeft()) for g in geometries]
+        self.world = engine.World(
+            random.randrange(2**31) if seed is None else seed,
+            self.bounds.width(), self.bounds.height(), start_in_warp=True,
+        )
+        self.world.set_display_regions([
+            (r.x(), r.y(), r.width(), r.height()) for r in self.regions
+        ])
+        self.last = time.monotonic()
+
+    def advance(self, now=None):
+        now = time.monotonic() if now is None else now
+        self.world.advance(max(0, now - self.last))
+        self.last = now
+
+    def paint(self, painter, index):
+        region = self.regions[index]
+        painter.save()
+        painter.translate(-region.x(), -region.y())
+        art.render(backend.Context(painter), self.world,
+                   self.bounds.width(), self.bounds.height())
+        painter.restore()
+
 def main(argv=None):
     argv=list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0].lower().split(':')[0] in ('/s','/c','/p'):
@@ -98,18 +127,26 @@ def main(argv=None):
                 os.replace(temporary,output);app.processEvents();time.sleep(max(0,1/24-(time.monotonic()-now)))
         finally:sim.close()
         return 0
+    screens = [app.primaryScreen()] if args.preview or args.embed else app.screens()
+    desktop = (AsteroidsDesktop([s.geometry() for s in screens])
+               if GAME == 'asteroids' and not args.preview and not args.embed else None)
     class View(QWidget):
-        def __init__(self,screen):
+        def __init__(self,screen,index):
             super().__init__();self.started=time.monotonic();self.pointer=None
+            self.index=index
             self.setWindowTitle(CONFIG['name']);self.setMouseTracking(True)
             if GAME=='pong': self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
             self.resize(960,600)
             if not args.preview and not args.embed:
                 self.setWindowFlags(Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowStaysOnTopHint)
                 self.setGeometry(screen.geometry());self.setCursor(Qt.CursorShape.BlankCursor)
-            self.sim=Simulation(max(100,self.width()),max(100,self.height()))
+                self.winId();self.windowHandle().setScreen(screen)
+            self.sim=None if desktop else Simulation(max(100,self.width()),max(100,self.height()))
         def paintEvent(self,_):
-            p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing);self.sim.draw(p,self.width(),self.height());p.end()
+            p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            if desktop:desktop.paint(p,self.index)
+            else:self.sim.draw(p,self.width(),self.height())
+            p.end()
         def keyPressEvent(self,event):
             if not args.embed and (not args.preview or event.key()==Qt.Key.Key_Escape):app.quit()
         def mousePressEvent(self,_):
@@ -119,14 +156,16 @@ def main(argv=None):
             point=event.globalPosition()
             if self.pointer is not None and (point-self.pointer).manhattanLength()>3 and time.monotonic()-self.started>1 and not args.preview and not args.embed:app.quit()
             self.pointer=point
-    views=[View(s) for s in ([app.primaryScreen()] if args.preview or args.embed else app.screens())]
+    views=[View(s,index) for index,s in enumerate(screens)]
     foreign=None
     if args.embed:
         foreign=QWindow.fromWinId(args.embed)
         for view in views:
             view.winId();view.windowHandle().setParent(foreign);view.resize(foreign.size());view.show()
     else:
-        for view in views:view.show()
+        for view in views:
+            if args.preview:view.show()
+            else:view.showFullScreen()
     def tick():
         if args.embed and sys.platform == 'win32':
             import ctypes
@@ -136,12 +175,16 @@ def main(argv=None):
                 app.quit();return
             if ctypes.windll.user32.GetClientRect(wintypes.HWND(args.embed),ctypes.byref(rect)):
                 views[0].resize(max(1,rect.right),max(1,rect.bottom))
+        if desktop:desktop.advance()
         for view in views:view.update()
     timer=QTimer();timer.timeout.connect(tick);timer.start(16)
     if args.duration:QTimer.singleShot(round(args.duration*1000),app.quit)
     app.screenAdded.connect(lambda *_:app.quit());app.screenRemoved.connect(lambda *_:app.quit())
+    for screen in screens:
+        screen.geometryChanged.connect(lambda *_:app.quit())
     try:return app.exec()
     finally:
-        for view in views:view.sim.close()
+        for view in views:
+            if view.sim:view.sim.close()
 
 if __name__=='__main__':raise SystemExit(main())

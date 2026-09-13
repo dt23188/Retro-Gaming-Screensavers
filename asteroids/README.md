@@ -12,6 +12,16 @@ drifts instead of holding the ship on the same pixels.
 Blaster rounds fire straight along the ship's nose without inheriting sideways
 drift. Missiles also launch forward before their homing guidance takes over.
 
+Fullscreen uses one world across all connected monitors, matching their desktop
+positions and logical sizes. The ship, projectiles and enemies can cross screen
+seams. On multiple monitors, camera travel expands toward the combined desktop's
+outer edges (a 10% inset on each axis), then eases back when motion stops or
+reverses. Uncovered corners around unequal-sized displays keep the ship visible.
+Each screen renders its own portion at native resolution; simulation advances
+once per frame regardless of monitor count. Preview and frame-export modes keep
+a single viewport. Changing the monitor layout exits the screensaver; the next
+launch picks up the new arrangement.
+
 | System | Installer |
 | --- | --- |
 | Linux/Ubuntu | `bash install-linux.sh` |
