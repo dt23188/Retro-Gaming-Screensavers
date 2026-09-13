@@ -11,6 +11,9 @@ drifts instead of holding the ship on the same pixels.
 
 Blaster rounds fire straight along the ship's nose without inheriting sideways
 drift. Missiles also launch forward before their homing guidance takes over.
+Enemy engines have pulsing exhaust and travelling shock rings. Firing briefly
+illuminates each ship's forward hull, and blaster hits create contact sparks
+and a short expanding flash, including hits absorbed by player protection.
 
 Fullscreen uses one world across all connected monitors, matching their desktop
 positions and logical sizes. The ship, projectiles and enemies can cross screen

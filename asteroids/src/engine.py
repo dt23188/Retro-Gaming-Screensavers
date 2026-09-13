@@ -152,6 +152,7 @@ class Ship:
     angle: float = -0.25
     thrust: bool = False
     invulnerable: float = 2.0
+    muzzle_flash: float = 0.0
 
 
 @dataclass
@@ -162,6 +163,7 @@ class Saucer:
     cooldown: float = 1.2
     life: float = 13.5
     kind: str = "ring"
+    muzzle_flash: float = 0.0
 
     @property
     def radius(self):
@@ -563,6 +565,17 @@ class World:
                 )
         self.rocks = self.rocks[-MAX_ROCKS:]
 
+    def blaster_impact(self, shot, fraction):
+        """A short contact burst; visual randomness must not alter combat RNG."""
+        point = shot.previous + (shot.position - shot.previous) * fraction
+        rng = random.Random(self.seed + round(self.time * 1000000))
+        self.sparks.append(Spark(point, Vec(), .22, .22, "impact_boom", 22))
+        for _ in range(14):
+            life = rng.uniform(.12, .36)
+            self.sparks.append(Spark(point, direction(rng.uniform(0, TAU)) *
+                                     rng.uniform(65, 230), life, life, "impact", 2))
+        self.sparks = self.sparks[-MAX_PARTICLES:]
+
     def destroy_ship(self):
         if (
             self.dead
@@ -683,6 +696,7 @@ class World:
             )
         )
         self.fire_timer = 0.14
+        self.ship.muzzle_flash = .09
         self.shots_fired += 1
 
     def visible(self, position, radius=0, camera=None, width=None, height=None):
@@ -737,6 +751,7 @@ class World:
             )
         )
         self.missile_ammo -= 1
+        self.ship.muzzle_flash = .09
         self.missile_timer = 1.5
         return True
 
@@ -873,6 +888,7 @@ class World:
         saucer.position = saucer.position + saucer.velocity * dt
         saucer.life -= dt
         saucer.cooldown -= dt
+        saucer.muzzle_flash = max(0, saucer.muzzle_flash - dt)
         if saucer.cooldown <= 0 and not self.dead:
             heading = math.atan2(
                 self.ship.position.y - saucer.position.y,
@@ -894,6 +910,7 @@ class World:
                 )
             )
             saucer.cooldown = 0.85 if saucer.small else 1.5
+            saucer.muzzle_flash = .09
         if saucer.life <= 0:
             self.saucer = None
 
@@ -901,6 +918,7 @@ class World:
         if dt <= 0:
             return
         self.time += dt
+        self.ship.muzzle_flash = max(0, self.ship.muzzle_flash - dt)
         self.part_flash = max(0, self.part_flash - dt)
         self.zone_flash = max(0, self.zone_flash - dt)
         if self.warp_remaining > 0:
@@ -1011,6 +1029,8 @@ class World:
                     is not None
                 ):
                     self.destroy_ship()
+                    self.blaster_impact(shot, segment_hit(
+                        shot.previous, shot.position, self.ship.position, 12))
                     shot.life = 0
                 elif shot.life > 0:
                     hits = [
@@ -1027,6 +1047,7 @@ class World:
                         is not None
                     ]
                     if hits:
+                        self.blaster_impact(shot, min(hits, key=lambda h: h[0])[0])
                         self.split_rock(min(hits, key=lambda h: h[0])[1], award=False)
                         shot.life = 0
             else:
@@ -1049,9 +1070,11 @@ class World:
                     else None
                 )
                 if st is not None and (not hits or st < min(h[0] for h in hits)):
+                    self.blaster_impact(shot, st)
                     self.destroy_enemy()
                     shot.life = 0
                 elif hits:
+                    self.blaster_impact(shot, min(hits, key=lambda h: h[0])[0])
                     self.split_rock(min(hits, key=lambda h: h[0])[1])
                     shot.life = 0
         self.shots = [s for s in self.shots if s.life > 0][-32:]

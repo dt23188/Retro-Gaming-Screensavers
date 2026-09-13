@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'asteroids/src'))
 import retro_portable as host
 from PySide6.QtGui import QImage,QPainter
 from PySide6.QtWidgets import QApplication
-from engine import World, Saucer, Vec, CorePart
+from engine import World, Saucer, Vec, CorePart, Shot
 
 class PortableRenderTests(unittest.TestCase):
     @classmethod
@@ -37,5 +37,13 @@ class PortableRenderTests(unittest.TestCase):
     def test_ship_destruction_overlay_renders(self):
         w=World(42);w.ship.invulnerable=0;w.destroy_ship()
         self.frame(w,640,360)
+
+    def test_muzzle_flashes_enemy_exhaust_and_blaster_impacts_render(self):
+        for kind in ('ring', 'raider', 'marauder'):
+            w=World(42,640,360);w.ship.invulnerable=0
+            w.ship.muzzle_flash=.09;w.ship.thrust=True
+            w.saucer=Saucer(Vec(130,0),Vec(100,0),False,kind=kind,muzzle_flash=.09)
+            w.blaster_impact(Shot(Vec(90,60),Vec(100,0),previous=Vec(50,60)),.5)
+            self.frame(w,640,360)
 
 if __name__=='__main__':unittest.main()

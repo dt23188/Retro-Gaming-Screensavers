@@ -130,6 +130,21 @@ def rock_surface(radius, outline):
     return surface
 
 
+def muzzle_flash(cr, remaining, color, nose=23):
+    if remaining <= 0:
+        return
+    fade = min(1, remaining / .09)
+    # Light washes back over the forward hull and blooms at the muzzle.
+    glow(cr, nose - 5, 0, 28, color, .65 * fade)
+    path(cr, [(nose, 0), (nose - 21, -8), (nose - 21, 8)])
+    cr.set_source_rgba(*color, .45 * fade)
+    cr.fill()
+    glow(cr, nose + 4, 0, 17, color, .75 * fade)
+    path(cr, [(nose - 2, -2), (nose + 15 * fade, 0), (nose - 2, 2)])
+    cr.set_source_rgba(1, 1, .9, fade)
+    cr.fill()
+
+
 def draw_ship(cr, ship, now):
     """Metal-plated delta hull, blue glass canopy, and twin engine nacelles."""
     if ship.thrust:
@@ -237,6 +252,9 @@ def draw_ship(cr, ship, now):
     cr.stroke()
 
 
+    muzzle_flash(cr, ship.muzzle_flash, (.55, .94, 1))
+
+
 def draw_enemy(cr, enemy, now):
     """Original fleet-inspired silhouettes: ring cruiser, winged raider, marauder."""
     r = enemy.radius
@@ -264,10 +282,25 @@ def draw_enemy(cr, enemy, now):
         cr.fill()
 
     def engine(x, y):
-        glow(cr, x - 5, y, 13, color, 0.3 * pulse)
-        path(cr, [(x, y - 2), (x - 14 - 5 * pulse, y), (x, y + 2)])
-        cr.set_source_rgba(*color, 0.75)
+        length = 22 + 12 * pulse + 4 * math.sin(now * 67 + y)
+        glow(cr, x - 9, y, 25, color, .38 * pulse)
+        plume = cairo.LinearGradient(x, y, x - length, y)
+        plume.add_color_stop_rgba(0, .85, .98, 1, .95)
+        plume.add_color_stop_rgba(.3, *color, .8)
+        plume.add_color_stop_rgba(1, *color, 0)
+        path(cr, [(x, y - 3), (x - length, y), (x, y + 3)])
+        cr.set_source(plume)
         cr.fill()
+        for i in range(3):
+            phase = (now * 4 + i / 3) % 1
+            cr.save()
+            cr.translate(x - phase * length, y)
+            cr.scale(.4, 1)
+            cr.set_source_rgba(*color, (1 - phase) * .6)
+            cr.set_line_width(1)
+            cr.arc(0, 0, 2 + phase * 3, 0, math.tau)
+            cr.stroke()
+            cr.restore()
         cr.set_source_rgb(0.8, 0.98, 1)
         cr.arc(x, y, 1.6, 0, math.tau)
         cr.fill()
@@ -368,6 +401,9 @@ def draw_enemy(cr, enemy, now):
         cr.set_source_rgb(0.95, 0.69, 0.31)
         cr.arc(-3, 0, 3, 0, math.tau)
         cr.fill()
+
+
+    muzzle_flash(cr, enemy.muzzle_flash, color)
 
 
 def centered(cr, text, x, y, size, color, alpha=1):
@@ -698,6 +734,21 @@ def render(cr, world, width, height):
         if not (-15 < p.x < world.width + 15 and -15 < p.y < world.height + 15):
             continue
         heat = spark.life / spark.maximum
+        if spark.kind == "impact_boom":
+            radius = spark.size * (1 - heat) + 3
+            glow(cr, p.x, p.y, radius * 1.8, (1, .65, .2), heat * .7)
+            cr.set_source_rgba(1, .9, .55, heat)
+            cr.set_line_width(2 * heat + .5)
+            cr.arc(p.x, p.y, radius, 0, math.tau)
+            cr.stroke()
+            continue
+        if spark.kind == "impact":
+            tail = p - spark.velocity.unit() * (3 + 8 * heat)
+            cr.set_source_rgba(1, .7 + .3 * heat, .3 + .7 * heat, heat)
+            cr.set_line_width(1.4 * heat + .4)
+            path(cr, [(tail.x, tail.y), (p.x, p.y)], False)
+            cr.stroke()
+            continue
         color = (
             (1, 0.35 + 0.45 * heat, 0.06)
             if spark.kind == "exhaust"
