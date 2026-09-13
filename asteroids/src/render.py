@@ -130,6 +130,33 @@ def rock_surface(radius, outline):
     return surface
 
 
+def draw_shield(cr, now):
+    """A transparent blue-violet energy sphere with a luminous curved rim."""
+    pulse = .5 + .5 * math.sin(now * 2.4)
+    radius = 35 + pulse * 1.2
+    glow(cr, 0, 0, radius * 1.6, (.30, .24, 1), .18 + pulse * .04)
+    sphere = cairo.RadialGradient(-radius * .18, -radius * .22, 0,
+                                  0, 0, radius)
+    sphere.add_color_stop_rgba(0, .48, .72, 1, .025)
+    sphere.add_color_stop_rgba(.50, .25, .48, 1, .055)
+    sphere.add_color_stop_rgba(.78, .35, .25, 1, .14)
+    sphere.add_color_stop_rgba(.94, .56, .30, 1, .34)
+    sphere.add_color_stop_rgba(1, .34, .65, 1, .58)
+    cr.set_source(sphere)
+    cr.arc(0, 0, radius, 0, math.tau)
+    cr.fill()
+    rim = cairo.LinearGradient(-radius, -radius, radius, radius)
+    rim.add_color_stop_rgba(0, .65, .88, 1, .85)
+    rim.add_color_stop_rgba(.45, .24, .50, 1, .36)
+    rim.add_color_stop_rgba(1, .72, .35, 1, .72)
+    cr.set_source(rim)
+    cr.set_line_width(1.3)
+    cr.arc(0, 0, radius, 0, math.tau)
+    cr.stroke()
+    # A soft specular reflection makes the field read as an orb, not a ring.
+    glow(cr, -radius * .42, -radius * .65, radius * .28, (.65, .86, 1), .34)
+
+
 def muzzle_flash(cr, remaining, color, nose=23):
     if remaining <= 0:
         return
@@ -804,14 +831,12 @@ def render(cr, world, width, height):
         p = screen(ship.position)
         cr.save()
         cr.translate(p.x, p.y)
-        if world.shield_remaining > 0:
-            glow(cr, 0, 0, 43, (0.2, 1, 0.6), 0.12)
-            cr.set_source_rgba(0.3, 1, 0.65, 0.6)
-            cr.set_line_width(1.5)
-            cr.arc(0, 0, 33 + math.sin(world.time * 5), 0, math.tau)
-            cr.stroke()
+        cr.save()
         cr.rotate(ship.angle)
         draw_ship(cr, ship, world.time)
+        cr.restore()
+        if world.shield_remaining > 0:
+            draw_shield(cr, world.time)
         cr.restore()
     if not world.dead:
         draw_core_status(cr, world)
