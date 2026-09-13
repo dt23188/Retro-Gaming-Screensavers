@@ -1,28 +1,30 @@
-# Retro Gaming Screensavers v0.1.1
+# Retro Gaming Screensavers 1.1.0 — Windows offline installer
 
-Asteroids, Pong, and Snake sources, cross-platform installers, dependency notices,
-and native runtime build recipes.
+One Windows 10/11 x64 setup program installs **Asteroids, Pong and Snake**, a shared
+Python/Qt Essentials runtime, native `.scr` launchers in Windows' screensaver list,
+Start menu previews and an Installed apps uninstaller. Destination machines do
+not need Python, pip, CMake, a compiler or internet access.
 
-Original project code is now licensed under MIT (copyright 2026 dt23188).
-Standalone game folders and the bundled runtime include the license. Third-party
-libraries retain their upstream licenses. This is a licensing/package update;
-gameplay and executable binaries are unchanged. Offline runtime archives now
-retain Python’s required bundled standard-library ZIP.
+Pong now advances in real time using small collision steps, uses a fast Windows
+bitmap frame handoff, and retains the last complete image when frame replacement
+briefly prevents a read. These fixes eliminate the reproduced slow motion and
+black frame flashes.
 
 ## Downloads
 
-- `retro-gaming-screensavers-linux-x86_64.zip`: tested bundled runtime for Linux
-  x86_64 with **glibc 2.44 or newer**. Extract the entire archive and run a game’s
-  `install-linux.sh --offline`. This build is not compatible with older Ubuntu
-  releases; use the source package or build the Ubuntu 22.04 recipe instead.
-- `retro-gaming-screensavers-source.zip`: all three games and installers, no
-  bundled runtime. Source installs fetch the dependencies documented per game.
-- `SHA256SUMS`: checksums of the release downloads. Each ZIP also includes a
-  checksum manifest for its extracted contents.
+- `Retro-Gaming-Screensavers-1.1.0-windows-x64-setup.exe`: combined offline setup.
+- Its adjacent `.exe.sha256`: setup download checksum.
+- `retro-gaming-screensavers-windows-x86_64.zip`: all sources, individual installers,
+  build recipes, native shared runtime, dependency notices and file checksums.
+- `SHA256SUMS`: checksums of the setup EXE and ZIP.
 
-Windows and macOS installers/build workflows are supplied, but this
-release does not include tested native Windows or macOS runtimes. Their native
-screensaver integration needs validation on the target OS.
+Install setup, then select **Retro Asteroids**, **Retro Pong** or **Retro Snake** in
+Windows Screensaver Settings. Setup preserves the existing selection, idle timeout
+and sign-in preference. Select another saver (or None) before uninstalling.
+See [Windows instructions](https://github.com/dt23188/Retro-Gaming-Screensavers/blob/main/windows/README.md).
 
-Fullscreen animation alone does not lock the computer. Configure password
-protection using your operating system’s screen-saver/lock settings.
+Validated on Windows: all three frozen games and registered launchers render;
+setup, in-place upgrade, removal, settings preservation and frame handoff tests
+pass. Windows x64 only; ARM64 emulation, 32-bit Windows and macOS were not tested
+for this release. The installer is not Authenticode-signed. Linux downloads remain
+available in earlier releases; Linux runtimes must be built for their target glibc.

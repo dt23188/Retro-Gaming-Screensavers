@@ -33,15 +33,24 @@ class Simulation:
         if GAME=='asteroids': self.world=engine.World(random.randrange(2**31),width,height)
         elif GAME=='snake': self.world=Arena(max(4,round(width/28)),max(4,round(height/56)*2),elapsed=0)
         else:
-            self.temp=tempfile.TemporaryDirectory(prefix='retro-pong-');self.frame=Path(self.temp.name)/'frame.png'
+            self.last_frame=QImage()
+            self.temp=tempfile.TemporaryDirectory(prefix='retro-pong-');self.frame=Path(self.temp.name)/('frame.bmp' if sys.platform=='win32' else 'frame.png')
             exe=ROOT/('pong.exe' if sys.platform=='win32' else 'pong')
             self.process=subprocess.Popen([str(exe),'--lock-frames',str(self.frame),'--width',str(width),'--height',str(height)],stdout=subprocess.DEVNULL)
     def draw(self,painter,width,height):
         now=time.monotonic()
         if GAME=='pong':
-            painter.fillRect(0,0,width,height,Qt.GlobalColor.black)
-            image=QImage(str(self.frame))
-            if not image.isNull(): painter.drawImage(painter.viewport(),image)
+            # Read and decode a complete snapshot; retain the last good frame
+            # if the producer is replacing the file during this paint.
+            try:
+                image=QImage.fromData(self.frame.read_bytes())
+            except OSError:
+                image=QImage()
+            if not image.isNull(): self.last_frame=image
+            if self.last_frame.isNull():
+                painter.fillRect(0,0,width,height,Qt.GlobalColor.black)
+            else:
+                painter.drawImage(painter.viewport(),self.last_frame)
         elif GAME=='asteroids':
             self.world.resize(width,height);self.world.advance(now-self.last)
             art.render(backend.Context(painter),self.world,width,height)
@@ -93,6 +102,7 @@ def main(argv=None):
         def __init__(self,screen):
             super().__init__();self.started=time.monotonic();self.pointer=None
             self.setWindowTitle(CONFIG['name']);self.setMouseTracking(True)
+            if GAME=='pong': self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
             self.resize(960,600)
             if not args.preview and not args.embed:
                 self.setWindowFlags(Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowStaysOnTopHint)

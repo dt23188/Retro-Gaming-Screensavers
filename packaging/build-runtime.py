@@ -2,6 +2,7 @@
 """Build one shared native runtime. Run with Python+Qt Essentials+PyInstaller installed."""
 import argparse, hashlib, json, os, platform, shutil, subprocess, sys, tempfile
 from pathlib import Path
+import importlib.metadata as im
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,default=root/'runtimes');p.add_argument('--pong-binary',type=Path);args=p.parse_args()
 label={'Linux':'linux','Darwin':'macos','Windows':'windows'}[platform.system()]
@@ -15,12 +16,21 @@ with tempfile.TemporaryDirectory(prefix='retro-runtime-build-') as d:
   pong=work/'pong'/('Release/pong.exe' if label=='windows' else 'pong')
   if not pong.exists():pong=work/'pong'/'pong.exe'
  cmd=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--windowed','--name','RetroScreensaver','--distpath',str(work/'dist'),'--workpath',str(work/'host'),'--specpath',str(work),'--exclude-module','cairo','--exclude-module','gi','--exclude-module','tkinter','--paths',str(root/'asteroids/src'),'--paths',str(root/'snake/src'),'--add-data',str(root/'asteroids/game.json')+os.pathsep+'.','--add-binary',str(pong.resolve())+os.pathsep+'.',str(root/'asteroids/src/retro_portable.py')]
- subprocess.run(cmd,check=True)
- destination=args.output/tag
+ cmd[cmd.index('--add-data'):cmd.index('--add-data')] = ['--hidden-import', 'engine', '--hidden-import', 'render', '--hidden-import', 'snake', '--hidden-import', 'drawing']
+ subprocess.run(cmd,check=True,cwd=work)
+ destination=args.output.resolve()/tag
+ if destination.parent != args.output.resolve():raise ValueError('Unsafe output path')
  if destination.exists():shutil.rmtree(destination)
  destination.mkdir(parents=True)
  shutil.copytree(work/'dist/RetroScreensaver',destination/'RetroScreensaver')
- if label=='windows':shutil.copy(destination/'RetroScreensaver/RetroScreensaver.exe',destination/'RetroScreensaver/RetroScreensaver.scr')
+ if label=='windows':
+  subprocess.run(['cmake','-S',str(root/'packaging/windows'),'-B',str(work/'launchers'),'-DCMAKE_BUILD_TYPE=Release'],check=True)
+  subprocess.run(['cmake','--build',str(work/'launchers'),'--config','Release','--parallel','2'],check=True)
+  for game in ('asteroids','pong','snake'):
+   launcher=work/'launchers'/'Release'/(game+'_saver.exe')
+   if not launcher.exists():launcher=work/'launchers'/(game+'_saver.exe')
+   shutil.copy(launcher,destination/'RetroScreensaver'/('Retro '+game.title()+'.scr'))
+  shutil.copy(destination/'RetroScreensaver/RetroScreensaver.exe',destination/'RetroScreensaver/RetroScreensaver.scr')
  if label=='macos':
   native=destination/'native';native.mkdir()
   for game in ('asteroids','pong','snake'):
@@ -29,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='retro-runtime-build-') as d:
    import plistlib
    (bundle/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'local.retro.screensavers.'+game,'CFBundleName':name,'CFBundleExecutable':'RetroSaver','CFBundlePackageType':'BNDL','CFBundleVersion':'1','NSPrincipalClass':name+'Saver','WorkerExecutable':'INSTALLER_REPLACES_THIS','WorkerArguments':['--game',game]}))
    subprocess.run(['codesign','--force','--sign','-',str(bundle)],check=True)
- metadata={'os':label,'architecture':arch,'python':platform.python_version(),'qt':'6.11.2','games':['asteroids','pong','snake'],'executable':'RetroScreensaver/RetroScreensaver'+('.exe' if label=='windows' else ''),'build_platform':platform.platform()}
+ metadata={'os':label,'architecture':arch,'python':platform.python_version(),'qt':im.version('PySide6-Essentials'),'games':['asteroids','pong','snake'],'executable':'RetroScreensaver/RetroScreensaver'+('.exe' if label=='windows' else ''),'build_platform':platform.platform()}
  if label=='linux':metadata['minimum_glibc']=platform.libc_ver()[1]
  (destination/'manifest.json').write_text(json.dumps(metadata,indent=2)+'\n')
  # Ship notices and corresponding game/raylib sources alongside the runtime.

@@ -20,8 +20,9 @@ The installer checks compatibility before using the payload. Ubuntu 22.04,
 24.04 and older-glibc Linux desktops will use source installation online unless
 you first create a compatible bundle on their oldest target distribution.
 
-Windows/macOS runtimes are **not included in this Linux-created archive**.
-Their native release builders are included. Building on the corresponding OS
+Native runtimes are distributed as platform-specific release downloads.
+The Windows x64 release includes an offline setup EXE and shared runtime;
+see [Windows installation](../windows/README.md). macOS native builders are included. Building on the corresponding OS
 creates packages that then install without downloading Python/Qt/compiler tools.
 Build separately for x86_64 and arm64; a native runtime is not interchangeable
 between operating systems or CPU architectures.
@@ -41,7 +42,7 @@ An application-menu entry includes preview and fullscreen actions.
 Use `--prefix DIR` and `--bin-dir DIR` for custom locations. `--source` forces a
 source installation; `--skip-deps` uses dependencies already provided in the
 installation venv and skips apt/pip. For source installation on other distros,
-provide Python 3.10–3.14, Qt Essentials and relevant graphics/build libraries,
+provide Python 3.10â€“3.14, Qt Essentials and relevant graphics/build libraries,
 then use `--source --skip-deps`. Online Ubuntu/Debian installs use apt (sudo)
 and a private Python environment. The only Python graphics requirement is
 `PySide6-Essentials==6.11.2`, avoiding the much larger unused Qt Addons package.
@@ -61,6 +62,11 @@ embedded-window hack.
 
 ## Windows 10/11, x64
 
+**Recommended:** use the [combined Windows setup EXE](../windows/README.md)
+to install all three games, make them appear in the Windows screensaver list,
+and register an uninstaller. The instructions below describe individual per-user
+installation from a release ZIP or source clone.
+
 Double-click `pong/install-windows.cmd`. If `runtimes/windows-x86_64` exists,
 the script verifies its checksums and copies a native `.scr` with its runtime.
 No Python/winget/Qt/compiler installation is then needed. Use `-Offline` to
@@ -68,7 +74,7 @@ require a payload or `-Source` to force a source build. `-Activate` selects the
 new screensaver and saves the previous selection; otherwise selection remains
 unchanged. Timeout and sign-in preference remain unchanged.
 
-Source fallback uses existing Python 3.10–3.14 or winget to install Python 3.13,
+Source fallback uses existing Python 3.10â€“3.14 or winget to install Python 3.13,
 then installs **Qt Essentials** and PyInstaller privately. Pong source builds
 also require CMake and Visual Studio 2022 Build Tools with the C++ desktop
 workload. For example:
@@ -81,8 +87,8 @@ winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --override "-
 Installation lives under `%LOCALAPPDATA%\RetroGamingScreensavers\pong`.
 Keep the generated `.scr` beside `_internal`; transfer the entire runtime folder,
 not just the executable. `/s`, `/c`, and `/p HWND` implement Windows fullscreen,
-configuration and settings preview. Native Windows behavior requires Windows
-validation; Linux argument tests alone are not native validation.
+configuration and settings preview. The combined Windows package is built and smoke-tested on Windows; see
+[VALIDATION.md](../VALIDATION.md) for the exact tests and remaining limits.
 
 ## macOS 13+, Apple Silicon or Intel
 

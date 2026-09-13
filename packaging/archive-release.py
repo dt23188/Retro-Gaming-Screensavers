@@ -14,14 +14,14 @@ output.mkdir(exist_ok=True)
 runtimes = [] if args.source_only else sorted(
     d.name for d in (root / 'runtimes').glob('*') if d.is_dir())
 name = 'retro-gaming-screensavers-' + ('-'.join(runtimes) if runtimes else 'source') + '.zip'
-excluded = {'__pycache__', '.git', 'releases', 'build', '.venv', 'venv', 'dist'}
+excluded = {'__pycache__', '.git', 'releases', 'build', '.venv', 'venv', 'dist', '.agents', '.codex'}
 checksums = []
 with zipfile.ZipFile(output / name, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
     for file in sorted(root.rglob('*')):
         relative = file.relative_to(root)
         if not file.is_file() or any(part in excluded for part in relative.parts):
             continue
-        if relative == Path('SHA256SUMS') or file.name.endswith(('.pyc', '.log')):
+        if relative == Path('SHA256SUMS') or file.name.endswith(('.pyc', '.log')) or '.before-' in file.name:
             continue
         if file.name == 'Test Asteroids Screensaver.desktop':
             continue  # Generated launchers contain paths for the build machine.

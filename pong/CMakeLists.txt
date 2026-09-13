@@ -25,3 +25,6 @@ endif()
 if(APPLE)
     target_link_libraries(pong PRIVATE "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
 endif()
+
+# Windows frame transport avoids PNG compression.
+target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_BMP)

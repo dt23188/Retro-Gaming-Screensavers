@@ -1,6 +1,9 @@
 # Retro Gaming Screensavers
 
 Asteroids, Pong and Snake, with Linux, macOS and Windows installers.
+
+**Windows 10/11 x64:** download the [combined offline setup EXE](https://github.com/dt23188/Retro-Gaming-Screensavers/releases)
+to install all three screensavers. See [Windows installation and builds](windows/README.md).
 Installers prefer bundled native runtimes, then fall back to source installation.
 
 | Game | Linux | macOS | Windows |
@@ -15,11 +18,12 @@ It requires **glibc 2.44+**. Compatible machines install offline without fetchin
 Python, Qt, CMake or a compiler. Graphics drivers and basic OS libraries remain
 system dependencies. Source installs use Qt Essentials rather than Qt Addons.
 
-**Other targets:** Windows/macOS offline packages must be built on their OS;
+**Other targets:** a Windows x64 offline setup and shared runtime are built and
+tested on Windows. macOS packages must be built on macOS;
 Ubuntu-compatible Linux packages should be built on the oldest target distro.
 Native release builders, Ubuntu 22.04 Dockerfile and manual GitHub Actions
 workflow are provided in [packaging](packaging/README.md). Those target builds
-were not executed on this Linux device. Older Linux systems automatically fall
+are also available through the manual build workflow. Older Linux systems automatically fall
 back to source installation, or `--offline` gives a compatibility error.
 
 Download a complete package from [GitHub Releases](https://github.com/dt23188/Retro-Gaming-Screensavers/releases), extract it, and keep its `runtimes/` folder beside the game folders. A Git clone contains source and installers; bundled runtimes are release downloads. See each game's **PORTABLE.md**
@@ -39,7 +43,7 @@ runtime bundling and per-OS build requirements follow the
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and native builds, and [THIRD-PARTY.md](THIRD-PARTY.md) for dependency notices. Manual fullscreen launchers display animation; password protection belongs to the operating system’s lock/screen-saver integration.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and native builds, and [THIRD-PARTY.md](THIRD-PARTY.md) for dependency notices. Manual fullscreen launchers display animation; password protection belongs to the operating systemâ€™s lock/screen-saver integration.
 
 ## License
 

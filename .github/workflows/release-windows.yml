@@ -1,0 +1,56 @@
+name: Build and publish Windows installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [packaging/windows/release-version.txt]
+permissions:
+  contents: write
+jobs:
+  windows-release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Read release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content packaging/windows/release-version.txt -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install PySide6-Essentials==6.11.2 pyinstaller==6.22.3
+          choco install innosetup --yes --no-progress
+      - name: Test frame handoff and portable renderer
+        run: python -m unittest discover -s tests -v
+      - name: Build offline runtime and setup
+        shell: pwsh
+        run: ./packaging/windows/build-installer.ps1 -Version $env:RELEASE_VERSION
+      - name: Smoke-test all three packaged games
+        run: python packaging/smoke-runtime.py runtimes/windows-x86_64
+      - name: Test setup, update, registered launchers and uninstall
+        shell: pwsh
+        run: ./packaging/windows/test-installer.ps1 -InstallerPath "releases/Retro-Gaming-Screensavers-$env:RELEASE_VERSION-windows-x64-setup.exe"
+      - name: Build release ZIP and asset checksums
+        shell: pwsh
+        run: |
+          python packaging/archive-release.py
+          Get-ChildItem releases -File | Where-Object { $_.Extension -in @('.exe','.zip') } | ForEach-Object {
+            "$((Get-FileHash $_.FullName).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content releases/SHA256SUMS -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro-screensavers-windows-x64
+          path: releases/*
+      - name: Publish versioned Windows release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem releases -File | ForEach-Object { $_.FullName })
+          gh release create "v$env:RELEASE_VERSION" @assets --target $env:GITHUB_SHA --title "Retro Gaming Screensavers $env:RELEASE_VERSION — Windows offline installer" --notes-file packaging/RELEASE-NOTES.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed; published versions are never overwritten.' }

@@ -23,7 +23,8 @@ if ($Payload -and -not $Source) {
  New-Item -ItemType Directory -Force $Runtime | Out-Null
  Copy-Item -Recurse -Force "$Payload\RetroScreensaver\*" $Runtime
  $Scr="$Runtime\$Name.scr"
- Copy-Item -Force "$Runtime\RetroScreensaver.exe" $Scr
+ $Native="$Runtime\Retro Snake.scr"
+ if (Test-Path $Native) {Copy-Item -Force $Native $Scr} else {Copy-Item -Force "$Runtime\RetroScreensaver.exe" $Scr}
  # The copied launcher reads game.json beside itself, without Python installed.
  Copy-Item -Force "$ProjectDir\game.json" "$Runtime\game.json"
 } else {

@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#ifdef _WIN32
+// Declare only the APIs needed here to avoid Windows/raylib name collisions.
+extern "C" __declspec(dllimport) int __stdcall MoveFileExW(const wchar_t*, const wchar_t*, unsigned long);
+extern "C" __declspec(dllimport) unsigned long __stdcall GetLastError();
+#endif
 
 namespace {
 constexpr int kScreenWidth = 1280;
@@ -95,7 +100,7 @@ public:
     }
     void run() {
         while (!WindowShouldClose()) {
-            const float dt = std::min(GetFrameTime(), 1.0F / 30.0F);
+            const float dt = GetFrameTime();
             elapsed_ += dt;
             if (duration_ > 0 && elapsed_ >= duration_) break;
             if (screensaver_) {
@@ -104,7 +109,7 @@ public:
                     IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) ||
                     GetMouseWheelMove() != 0 || (elapsed_ > 1.0F && Vector2Moved()))) break;
             } else if (scene_ == Scene::Title && IsKeyPressed(KEY_ESCAPE)) break;
-            update(dt);
+            advanceRealtime(dt);
             draw();
         }
     }
@@ -114,13 +119,14 @@ public:
         RenderTexture2D target = LoadRenderTexture(width, height);
         if (!IsRenderTextureReady(target)) throw std::runtime_error("Cannot create lock renderer");
         double last = GetTime(), start = last;
-        const std::string temporary = output + ".tmp.png";
+        const bool bitmap = std::filesystem::path(output).extension() == ".bmp";
+        const std::string temporary = output + (bitmap ? ".tmp.bmp" : ".tmp.png");
         while (duration_ <= 0 || GetTime() - start < duration_) {
             const double frameStart = GetTime();
-            const float dt = std::min(static_cast<float>(frameStart - last), 1.0F / 30.0F);
+            const float dt = static_cast<float>(frameStart - last);
             last = frameStart;
             PollInputEvents();
-            update(dt);
+            advanceRealtime(dt);
             BeginTextureMode(target);
             ClearBackground(kBackground);
             const float arenaScale = std::min(width, height) / 720.0F;
@@ -139,19 +145,44 @@ public:
             ImageFlipVertical(&frame);
             const bool exported = ExportImage(frame, temporary.c_str());
             UnloadImage(frame);
+            if (!exported) throw std::runtime_error("Cannot export lock frame");
 #ifdef _WIN32
-            std::error_code replaceError;
-            std::filesystem::remove(output, replaceError);
-#endif
-            if (!exported || std::rename(temporary.c_str(), output.c_str()) != 0)
+            const auto source = std::filesystem::path(temporary).wstring();
+            const auto destination = std::filesystem::path(output).wstring();
+            bool replaced = false;
+            for (int attempt = 0; attempt < 25; ++attempt) {
+                if (MoveFileExW(source.c_str(), destination.c_str(), 1 /* MOVEFILE_REPLACE_EXISTING */)) {
+                    replaced = true;
+                    break;
+                }
+                const auto error = GetLastError();
+                if (error != 5 && error != 32 && error != 33)
+                    throw std::runtime_error("Cannot replace lock frame: " + std::to_string(error));
+                WaitTime(0.002);
+            }
+            // A reader may briefly hold the image open. Keep the previous frame
+            // and retry with the next rendered image instead of stopping Pong.
+            if (!replaced) continue;
+#else
+            if (std::rename(temporary.c_str(), output.c_str()) != 0)
                 throw std::runtime_error("Cannot write lock frame");
+#endif
             std::cout << "frame" << std::endl;
-            WaitTime(std::max(0.0, 1.0 / 24.0 - (GetTime() - frameStart)));
+            WaitTime(std::max(0.0, 1.0 / (bitmap ? 60.0 : 24.0) - (GetTime() - frameStart)));
         }
         UnloadRenderTexture(target);
     }
 
 private:
+    // Preserve elapsed time while keeping collision and AI updates small.
+    void advanceRealtime(float elapsed) {
+        double remaining = std::max(0.0, static_cast<double>(elapsed));
+        while (remaining > 0.0) {
+            const double step = std::min(remaining, 1.0 / 120.0);
+            update(static_cast<float>(step));
+            remaining -= step;
+        }
+    }
     bool Vector2Moved() const {
         const Vector2 delta = GetMouseDelta();
         return delta.x != 0 || delta.y != 0;

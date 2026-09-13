@@ -4,6 +4,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('payload',type=Path);args=p.parse_args()
 meta=json.loads((args.payload/'manifest.json').read_text());exe=(args.payload/meta['executable']).resolve()
+if not exe.exists():exe=(args.payload/'runtime'/Path(meta['executable']).name).resolve()
 with tempfile.TemporaryDirectory(prefix='retro-native-smoke-') as d:
  for game in ('asteroids','pong','snake'):
   output=Path(d)/(game+'.png')
