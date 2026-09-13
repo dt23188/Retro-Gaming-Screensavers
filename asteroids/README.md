@@ -26,3 +26,7 @@ including `runtimes/` for offline installation.
 Preview: `retro-asteroids-screensaver --preview` on Linux.
 For development install `requirements-portable.txt`, then run
 `python3 src/retro_portable.py --preview` (Pong needs its compiled executable).
+
+## License
+
+Original project code is licensed under the [MIT License](LICENSE). Third-party libraries retain their own licenses; see [THIRD-PARTY.md](THIRD-PARTY.md).

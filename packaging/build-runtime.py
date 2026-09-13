@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='retro-runtime-build-') as d:
  # Ship notices and corresponding game/raylib sources alongside the runtime.
  notices=destination/'NOTICES';notices.mkdir()
  shutil.copytree(root/'packaging/licenses',notices/'upstream',dirs_exist_ok=True)
+ shutil.copy(root/'LICENSE',notices/'PROJECT-LICENSE.txt')
  for game in ('asteroids','pong','snake'):shutil.copy(root/game/'THIRD-PARTY.md',notices/(game+'.md'))
  try:
   import importlib.metadata as im

@@ -43,4 +43,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and native builds, and [THIRD-P
 
 ## License
 
-A license for the original project code has not been selected yet; no reuse license is granted at this time. Third-party components retain their upstream licenses and notices.
+Original project code is licensed under the [MIT License](LICENSE), copyright 2026 dt23188. Third-party components retain their upstream licenses and notices; see [THIRD-PARTY.md](THIRD-PARTY.md).

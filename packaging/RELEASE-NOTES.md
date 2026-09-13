@@ -1,7 +1,12 @@
-# Retro Gaming Screensavers — initial release
+# Retro Gaming Screensavers v0.1.1
 
 Asteroids, Pong, and Snake sources, cross-platform installers, dependency notices,
 and native runtime build recipes.
+
+Original project code is now licensed under MIT (copyright 2026 dt23188).
+Standalone game folders and the bundled runtime include the license. Third-party
+libraries retain their upstream licenses. This is a licensing/package update;
+gameplay and executable binaries are unchanged.
 
 ## Downloads
 
@@ -14,7 +19,7 @@ and native runtime build recipes.
 - `SHA256SUMS`: checksums of the release downloads. Each ZIP also includes a
   checksum manifest for its extracted contents.
 
-Windows and macOS installers/build workflows are supplied, but this initial
+Windows and macOS installers/build workflows are supplied, but this
 release does not include tested native Windows or macOS runtimes. Their native
 screensaver integration needs validation on the target OS.
 

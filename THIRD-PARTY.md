@@ -1,6 +1,6 @@
 # Third-party components
 
-Dependency licenses remain separate from the project’s own code.
+The original project code is MIT-licensed; see [LICENSE](LICENSE). Dependency licenses remain separate and are not replaced by MIT.
 
 - Pong includes raylib source and its zlib license in `pong/vendor/raylib/`.
   Embedded raylib dependencies retain their upstream notices.
