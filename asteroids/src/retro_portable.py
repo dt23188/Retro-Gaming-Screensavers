@@ -122,6 +122,9 @@ def main(argv=None):
     if args.width<100 or args.height<100 or args.width>16384 or args.height>16384 or args.duration<0:parser.error('Invalid dimensions or duration')
     if args.frames:os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
     app=QApplication(sys.argv[:1])
+    if not args.preview and not args.frames and not args.configure:
+        app.setDesktopFileName("org.omarchy.screensaver")
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
     if args.configure:
         QMessageBox.information(None,CONFIG['name'],'Autonomous retro gameplay. Choose idle timeout and password protection in your operating systemâ€™s screensaver settings.');return 0
     if args.frames:
