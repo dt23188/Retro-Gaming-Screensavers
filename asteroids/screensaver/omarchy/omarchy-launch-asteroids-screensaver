@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+force=false
+for arg in "$@"; do
+  case "$arg" in
+    force) force=true ;;
+    --help|-h) echo 'Usage: omarchy-launch-asteroids-screensaver [force]'; exit 0 ;;
+    *) echo "Unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+pgrep -f '[o]rg.omarchy.screensaver' >/dev/null && exit 0
+if omarchy-toggle-enabled screensaver-off && [[ $force != true ]]; then exit 1; fi
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-asteroids-launch.lock"
+flock -n 9 || exit 0
+exec "$HOME/.local/bin/asteroids-screensaver"

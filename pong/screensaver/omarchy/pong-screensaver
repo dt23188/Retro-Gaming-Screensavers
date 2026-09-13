@@ -1,0 +1,2 @@
+#!/bin/bash
+exec -a org.omarchy.screensaver.pong python3 "$HOME/.local/share/omarchy-pong/launch.py" "$@"

@@ -1,0 +1,4 @@
+runtimes
+releases
+.git
+**/__pycache__

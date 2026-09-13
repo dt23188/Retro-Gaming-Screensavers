@@ -1,0 +1,31 @@
+name: Build native offline runtimes
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Linux build and graphics libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libxcb-cursor0 libxkbcommon-x11-0 libegl1 xvfb xauth
+      - name: Python runtime build dependencies
+        run: python -m pip install PySide6-Essentials==6.11.2 pyinstaller==6.22.3
+      - name: Build runtime and native wrappers
+        run: python packaging/build-runtime.py
+      - name: Smoke-test all three frozen games
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python packaging/smoke-runtime.py runtimes/linux-x86_64
+      - name: Archive release with native install files
+        run: python packaging/archive-release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retro-screensavers-${{ matrix.os }}
+          path: releases/*.zip

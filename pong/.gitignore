@@ -1,0 +1,5 @@
+build/
+pong
+pong.exe
+*.o
+.deps/

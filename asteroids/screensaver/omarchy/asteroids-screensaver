@@ -1,0 +1,2 @@
+#!/bin/bash
+exec -a org.omarchy.screensaver.asteroids /usr/bin/python3 "$HOME/.local/share/omarchy-asteroids/app.py" "$@"

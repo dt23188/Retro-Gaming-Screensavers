@@ -1,0 +1,4 @@
+Qt for Python / Qt: The Qt Company Ltd. and contributors.
+The runtime dynamically links Qt; corresponding source, license declarations, and attribution notices are available at https://code.qt.io/ and https://download.qt.io/official_releases/qt/.
+See https://doc.qt.io/qtforpython-6/licenses.html and https://doc.qt.io/qt-6/licenses-used-in-qt.html for applicable license/third-party notices.
+Qt binaries may be replaced by compatible builds in the runtime _internal directory.

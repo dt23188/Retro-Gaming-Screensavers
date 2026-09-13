@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Launch Snake using Omarchy's standard monitor/window lifecycle.
+
+force=false
+span=false
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/snake.json"
+if [[ -f $config ]]; then
+  span=$(jq -r '.span_monitors == true' "$config") || exit 1
+fi
+for arg in "$@"; do
+  case "$arg" in
+    force) force=true ;;
+    --span-monitors) span=true ;;
+    --independent-monitors) span=false ;;
+    --help|-h)
+      echo 'Usage: omarchy-launch-snake-screensaver [force] [--span-monitors|--independent-monitors]'
+      echo "Default mode is set by span_monitors in $config."
+      exit 0 ;;
+    *) echo "Unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+if omarchy-cmd-missing python3; then
+  exit 1
+fi
+
+# Exit early if screensaver is already running
+pgrep -f '[o]rg.omarchy.screensaver' && exit 0
+
+# Allow screensaver to be turned off but also force started
+if omarchy-toggle-enabled screensaver-off && [[ $force != true ]]; then
+  exit 1
+fi
+
+# One process owns all windows and game state in spanning mode. GTK targets
+# each output explicitly; the independent mode below retains its launch flow.
+if [[ $span == true ]]; then
+  exec /home/rf/.local/bin/omarchy-snake --span-monitors
+fi
+
+focused=$(omarchy-hyprland-monitor-focused)
+hypr_focus_monitor() {
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
+}
+
+hypr_exec() {
+  local command
+  printf -v command '%q ' "$@"
+
+  hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
+}
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+# Open Hyprland's event stream before spawning anything, so a window that maps
+# quickly can't emit its openwindow event before we are listening for it.
+exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+
+# hypr_exec is async and a new window maps on whatever monitor is focused at that
+# moment. Block until this monitor's screensaver actually opens before moving
+# focus on -- otherwise slow-starting windows all pile onto the last monitor.
+# The deadline is a safety net in case the window never appears.
+wait_for_screensaver_window() {
+  local line deadline=$((SECONDS + 5))
+  while ((SECONDS < deadline)) && IFS= read -r -t $((deadline - SECONDS)) -u "$events" line; do
+    [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]] && return 0
+  done
+}
+
+for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+  hypr_focus_monitor "$m"
+
+  hypr_exec /home/rf/.local/bin/omarchy-snake
+
+  wait_for_screensaver_window
+done
+
+hypr_focus_monitor "$focused"

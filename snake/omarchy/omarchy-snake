@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 "$HOME/.local/share/omarchy-snake/graphics.py" --app-id org.omarchy.screensaver "$@"

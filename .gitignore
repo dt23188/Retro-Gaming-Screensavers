@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+build/
+.venv/
+venv/
+dist/
+runtimes/
+releases/
+
+# Local release checksums and desktop shortcuts use this device’s paths.
+/SHA256SUMS
+/Test Asteroids Screensaver.desktop
+/asteroids/Test Asteroids Screensaver.desktop
+*.zip
+*.log
+.DS_Store

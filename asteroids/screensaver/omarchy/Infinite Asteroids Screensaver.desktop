@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Infinite Asteroids Screensaver
+Comment=Autonomous spaceship exploring endless asteroid space
+Exec=omarchy-launch-asteroids-screensaver force
+Icon=applications-games
+Terminal=false
+Categories=Game;
+Keywords=screensaver;asteroids;space;spaceship;
