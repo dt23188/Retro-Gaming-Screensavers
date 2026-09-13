@@ -1,8 +1,16 @@
 # Pong Screensaver
 
-AI Blue vs Pink Pong on black, with fireball trails, paddle/wall screen shake,
+AI-vs-AI Pong with randomized team colors on black, with fireball trails, paddle/wall screen shake,
 a responsive playfield and speed increases every 15 seconds. The C++ game also
 retains its three interactive play modes.
+
+Fullscreen defaults to an independent randomized match on each active monitor.
+Each screen gets a distinct pair of complementary team colors, randomized on
+every launch. Scores, ball movement and effects belong to that screen's match.
+Use `retro-pong-screensaver --single-monitor` for the primary screen only, or
+`--all-monitors` for all screens. Preview remains a single window. Monitor layout
+changes exit the screensaver; relaunch to pick up the new arrangement.
+The native game also accepts `--team-hue 0..359` to choose a specific palette.
 
 | System | Installer |
 | --- | --- |

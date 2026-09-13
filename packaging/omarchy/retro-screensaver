@@ -1,0 +1,50 @@
+#!/bin/bash
+set -euo pipefail
+state="$HOME/.config/omarchy/retro-screensaver-selection"
+current() { if [[ -f "$state" ]]; then cat "$state"; else echo rotation; fi; }
+valid() { case "$1" in rotation|asteroids|pong|snake|classic-snake|matrix|omarchy) return 0;; *) return 1;; esac; }
+action=${1:-run}
+[[ $# == 0 ]] || shift
+case "$action" in
+ current) current; exit;;
+ select)
+   valid "${1:-}" || { echo 'Unknown screensaver' >&2; exit 2; }
+   mkdir -p "${state%/*}"
+   printf '%s\n' "$1" > "$state"
+   exit;;
+ run) game=$(current);;
+ *) game=$action;;
+esac
+valid "$game" || exit 2
+if [[ $game == rotation ]]; then
+ pgrep -f '[o]rg.omarchy.screensaver' >/dev/null && exit 0
+ if omarchy toggle enabled screensaver-off && [[ " $* " != *" force "* ]]; then exit 0; fi
+ if [[ $(omarchy-shell lock isLocked 2>/dev/null) == true ]]; then exit 0; fi
+ exec 8>"${XDG_RUNTIME_DIR:-/tmp}/retro-rotation-$UID.lock"
+ flock -n 8 || exit 0
+ last_file="$HOME/.config/omarchy/retro-screensaver-last"
+ last=""
+ [[ ! -f $last_file ]] || read -r last < "$last_file" || true
+ case "$last" in
+   classic-snake|snake) game=asteroids ;;
+   asteroids) game=pong ;;
+   *) game=classic-snake ;;
+ esac
+ printf '%s\n' "$game" > "$last_file"
+fi
+case "$game" in
+ classic-snake) exec "$HOME/.local/bin/omarchy-launch-snake-screensaver" "$@";;
+ matrix) exec "$HOME/.local/bin/omarchy-launch-matrix-screensaver" "$@";;
+ omarchy) exec /usr/share/omarchy/bin/omarchy-launch-screensaver "$@";;
+esac
+force=false
+args=()
+for arg in "$@"; do
+ if [[ $arg == force ]]; then force=true; else args+=("$arg"); fi
+done
+pgrep -f '[o]rg.omarchy.screensaver' >/dev/null && exit 0
+if omarchy toggle enabled screensaver-off && [[ $force != true ]]; then exit 0; fi
+if [[ $(omarchy-shell lock isLocked 2>/dev/null) == true ]]; then exit 0; fi
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/retro-screensaver-$UID.lock"
+flock -n 9 || exit 0
+exec "$HOME/.local/bin/retro-$game-screensaver" "${args[@]}"

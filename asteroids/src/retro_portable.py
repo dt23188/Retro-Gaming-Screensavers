@@ -25,8 +25,16 @@ elif GAME == 'snake':
     from snake import Arena
     from drawing import render_arena
 
+def monitor_team_hues(count):
+    """Distinct complementary team pairs, randomly assigned on each launch."""
+    base = random.uniform(0, 180)
+    hues = [(base + i * 180 / count) % 180 for i in range(count)]
+    random.shuffle(hues)
+    return hues
+
+
 class Simulation:
-    def __init__(self, width, height):
+    def __init__(self, width, height, team_hue=None):
         self.width,self.height=width,height
         self.last=self.started=time.monotonic();self.previous={};self.sparks=[];self.step_time=self.last
         self.process=None;self.temp=None
@@ -36,7 +44,7 @@ class Simulation:
             self.last_frame=QImage()
             self.temp=tempfile.TemporaryDirectory(prefix='retro-pong-');self.frame=Path(self.temp.name)/('frame.bmp' if sys.platform=='win32' else 'frame.png')
             exe=ROOT/('pong.exe' if sys.platform=='win32' else 'pong')
-            self.process=subprocess.Popen([str(exe),'--lock-frames',str(self.frame),'--width',str(width),'--height',str(height)],stdout=subprocess.DEVNULL)
+            self.process=subprocess.Popen([str(exe),'--lock-frames',str(self.frame),'--width',str(width),'--height',str(height), '--team-hue', str(random.uniform(0, 360) if team_hue is None else team_hue)],stdout=subprocess.DEVNULL)
     def draw(self,painter,width,height):
         now=time.monotonic()
         if GAME=='pong':
@@ -107,6 +115,9 @@ def main(argv=None):
     parser.add_argument('--preview',action='store_true');parser.add_argument('--configure',action='store_true')
     parser.add_argument('--embed',type=int,default=0);parser.add_argument('--frames');parser.add_argument('--duration',type=float,default=0)
     parser.add_argument('--width',type=int,default=1280);parser.add_argument('--height',type=int,default=720)
+    monitors=parser.add_mutually_exclusive_group()
+    monitors.add_argument('--all-monitors',action='store_true',help='Independent Pong matches on all screens (default)')
+    monitors.add_argument('--single-monitor',action='store_true',help='Use only the primary screen')
     args=parser.parse_args(argv)
     if args.width<100 or args.height<100 or args.width>16384 or args.height>16384 or args.duration<0:parser.error('Invalid dimensions or duration')
     if args.frames:os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
@@ -127,7 +138,8 @@ def main(argv=None):
                 os.replace(temporary,output);app.processEvents();time.sleep(max(0,1/24-(time.monotonic()-now)))
         finally:sim.close()
         return 0
-    screens = [app.primaryScreen()] if args.preview or args.embed else app.screens()
+    screens = [app.primaryScreen()] if args.preview or args.embed or args.single_monitor else app.screens()
+    team_hues=monitor_team_hues(len(screens))
     desktop = (AsteroidsDesktop([s.geometry() for s in screens])
                if GAME == 'asteroids' and not args.preview and not args.embed else None)
     class View(QWidget):
@@ -141,7 +153,7 @@ def main(argv=None):
                 self.setWindowFlags(Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowStaysOnTopHint)
                 self.setGeometry(screen.geometry());self.setCursor(Qt.CursorShape.BlankCursor)
                 self.winId();self.windowHandle().setScreen(screen)
-            self.sim=None if desktop else Simulation(max(100,self.width()),max(100,self.height()))
+            self.sim=None if desktop else Simulation(max(100,self.width()),max(100,self.height()),team_hue=team_hues[index])
         def paintEvent(self,_):
             p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
             if desktop:desktop.paint(p,self.index)

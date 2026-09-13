@@ -67,8 +67,12 @@ Color FadeColor(Color color, float alpha) {
 
 class PongGame {
 public:
-    PongGame(bool screensaver, bool preview, bool ai, int monitor, float duration, bool lockFrames = false, int width = kScreenWidth, int height = kScreenHeight)
+    PongGame(bool screensaver, bool preview, bool ai, int monitor, float duration, bool lockFrames = false, int width = kScreenWidth, int height = kScreenHeight, float teamHue = -1)
         : random_(std::random_device{}()), screensaver_(screensaver), preview_(preview), duration_(duration) {
+        if (teamHue >= 0) {
+            teamColors_[0] = ColorFromHSV(teamHue, .78F, 1.0F);
+            teamColors_[1] = ColorFromHSV(std::fmod(teamHue + 180.0F, 360.0F), .78F, 1.0F);
+        }
         SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | (lockFrames ? FLAG_WINDOW_HIDDEN : 0));
         InitWindow(width, height, lockFrames ? "omarchy-pong-lock-renderer" : screensaver && !preview ? "org.omarchy.screensaver" : "Neon Pong");
         if (screensaver && !preview) {
@@ -335,7 +339,7 @@ private:
         paddle.recoilTime = 0.32F;
         paddle.recoilDirection = leftSide ? -1.0F : 1.0F;
         flash_ = 1.0F;
-        spawnBurst(ball_.position, leftSide ? kBlue : kPink, 18);
+        spawnBurst(ball_.position, leftSide ? teamColors_[0] : teamColors_[1], 18);
         play(paddleSound_);
     }
     void wallImpact(Vector2 position) {
@@ -345,7 +349,7 @@ private:
     }
     void scorePoint(int player) {
         ++scores_[player];
-        spawnBurst(ball_.position, player == 0 ? kBlue : kPink, 46);
+        spawnBurst(ball_.position, player == 0 ? teamColors_[0] : teamColors_[1], 46);
         triggerShake(34.0F, 0.65F);
         left_.recoilTime = right_.recoilTime = 0.32F;
         left_.recoilDirection = -1.0F;
@@ -508,8 +512,8 @@ private:
     }
     void drawTitle() const {
         const float glow = 0.72F + std::sin(pulse_ * 2.2F) * 0.18F;
-        drawCentered("NEON", 155, 94, FadeColor(kBlue, glow));
-        drawCentered("PONG", 250, 150, FadeColor(kPink, glow));
+        drawCentered("NEON", 155, 94, FadeColor(teamColors_[0], glow));
+        drawCentered("PONG", 250, 150, FadeColor(teamColors_[1], glow));
         drawCentered("A MODERN ARCADE DUEL", 422, 23, kMuted);
         drawButton(465, "1", "SOLO  vs  AI", IsKeyDown(KEY_ONE));
         drawButton(529, "2", "LOCAL  VERSUS", IsKeyDown(KEY_TWO));
@@ -520,7 +524,7 @@ private:
     void drawButton(int y, const char* key, const char* label, bool active) const {
         const Rectangle rect{410, static_cast<float>(y), 460, 54};
         DrawRectangleRounded(rect, 0.18F, 8, active ? Color{25, 82, 105, 235} : Color{8, 25, 48, 225});
-        DrawRectangleRoundedLines(rect, 0.18F, 8, 2.0F, FadeColor(kBlue, active ? 1.0F : 0.45F));
+        DrawRectangleRoundedLines(rect, 0.18F, 8, 2.0F, FadeColor(teamColors_[0], active ? 1.0F : 0.45F));
         DrawText(key, 438, y + 13, 26, kGold);
         DrawText(label, 502, y + 14, 24, kInk);
     }
@@ -530,8 +534,8 @@ private:
                 DrawRectangle(static_cast<int>(worldWidth_ * 0.5F - 2),
                               static_cast<int>(y), 4, 16, Color{107, 155, 178, 100});
         }
-        drawPaddle(left_, kBlue);
-        drawPaddle(right_, kPink);
+        drawPaddle(left_, teamColors_[0]);
+        drawPaddle(right_, teamColors_[1]);
         drawFireball();
         for (const auto& p : particles_) {
             if (p.life <= 0.0F) continue;
@@ -540,11 +544,11 @@ private:
         }
     }
     void drawMatchHud() const {
-        DrawText(TextFormat("%02i", scores_[0]), 485, 20, 64, FadeColor(kBlue, 0.92F));
-        DrawText(TextFormat("%02i", scores_[1]), 705, 20, 64, FadeColor(kPink, 0.92F));
+        DrawText(TextFormat("%02i", scores_[0]), 485, 20, 64, FadeColor(teamColors_[0], 0.92F));
+        DrawText(TextFormat("%02i", scores_[1]), 705, 20, 64, FadeColor(teamColors_[1], 0.92F));
         drawCentered(mode_ == Mode::Solo ? "SOLO MATCH  -  FIRST TO 7" :
                      mode_ == Mode::Versus ? "LOCAL VERSUS  -  FIRST TO 7" :
-                     "BLUE vs PINK  -  FIRST TO 7", 90, 18, kMuted);
+                     "LEFT vs RIGHT  -  FIRST TO 7", 90, 18, kMuted);
         if (ball_.waiting) {
             const int count = std::max(1, static_cast<int>(std::ceil(serveTimer_)));
             drawCentered(TextFormat("NEXT SERVE IN %i", count), 420, 24, kGold);
@@ -552,8 +556,8 @@ private:
         if (mode_ == Mode::AiVersusAi) return;
         if (rally_ >= 4 && !ball_.waiting)
             drawCentered(TextFormat("RALLY  %i", rally_), 650, 18, kGold);
-        DrawText("W/S", 35, 674, 18, kBlue);
-        DrawText(mode_ == Mode::Solo ? "AI" : "UP/DOWN", 1120, 674, 18, kPink);
+        DrawText("W/S", 35, 674, 18, teamColors_[0]);
+        DrawText(mode_ == Mode::Solo ? "AI" : "UP/DOWN", 1120, 674, 18, teamColors_[1]);
         drawCentered("P  PAUSE    R  RESTART    M  SOUND    F11  FULLSCREEN", 681, 16, kMuted);
     }
     void drawFireball() const {
@@ -620,8 +624,8 @@ private:
     }
     void drawGameOver() const {
         DrawRectangle(0, 0, kScreenWidth, kScreenHeight, Color{1, 4, 12, 205});
-        const Color color = winner_ == 0 ? kBlue : kPink;
-        drawCentered(mode_ == Mode::AiVersusAi ? (winner_ == 0 ? "BLUE WINS" : "PINK WINS") : winner_ == 0 ? "PLAYER ONE WINS" :
+        const Color color = winner_ == 0 ? teamColors_[0] : teamColors_[1];
+        drawCentered(mode_ == Mode::AiVersusAi ? (winner_ == 0 ? "LEFT TEAM WINS" : "RIGHT TEAM WINS") : winner_ == 0 ? "PLAYER ONE WINS" :
                      mode_ == Mode::Solo ? "THE AI WINS" : "PLAYER TWO WINS", 248, 64, color);
         drawCentered(TextFormat("%02i  -  %02i", scores_[0], scores_[1]), 332, 48, kInk);
         if (mode_ == Mode::AiVersusAi) {
@@ -649,6 +653,7 @@ private:
     std::array<int, 2> scores_{};
     std::array<Particle, kParticleCount> particles_{};
     std::vector<TrailPoint> trail_{};
+    std::array<Color, 2> teamColors_{kBlue, kPink};
     std::mt19937 random_;
     int serveDirection_{1};
     int rally_{};
@@ -680,7 +685,7 @@ int main(int argc, char** argv) {
     bool saver = false, preview = false, ai = false;
     int monitor = 0, width = kScreenWidth, height = kScreenHeight;
     std::string lockOutput;
-    float duration = 0;
+    float duration = 0, teamHue = -1;
     try {
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
@@ -692,9 +697,10 @@ int main(int argc, char** argv) {
             else if (arg == "--preview") saver = preview = true;
             else if (arg == "--ai-vs-ai") ai = true;
             else if (arg == "--monitor") monitor = std::stoi(value());
+            else if (arg == "--team-hue") { teamHue = std::stof(value()); if (!std::isfinite(teamHue) || teamHue < 0 || teamHue >= 360) throw std::runtime_error("Team hue must be in [0, 360)"); }
             else if (arg == "--duration") duration = std::stof(value());
             else if (arg == "--help" || arg == "-h") {
-                std::cout << "pong [--ai-vs-ai] [--screensaver | --preview] [--monitor n] [--duration seconds] [--lock-frames path --width px --height px]\n";
+                std::cout << "pong [--ai-vs-ai] [--screensaver | --preview] [--monitor n] [--team-hue degrees] [--duration seconds] [--lock-frames path --width px --height px]\n";
                 return 0;
             } else throw std::runtime_error("Unknown option: " + arg);
         }
@@ -707,7 +713,7 @@ int main(int argc, char** argv) {
         height = std::max(1, static_cast<int>(height * scale));
     }
     try {
-        PongGame game(saver, preview, ai, monitor, duration, !lockOutput.empty(), width, height);
+        PongGame game(saver, preview, ai, monitor, duration, !lockOutput.empty(), width, height, teamHue);
         if (!lockOutput.empty()) game.runLockFrames(lockOutput);
         else game.run();
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
