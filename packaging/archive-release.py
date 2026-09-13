@@ -21,7 +21,7 @@ with zipfile.ZipFile(output / name, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) 
         relative = file.relative_to(root)
         if not file.is_file() or any(part in excluded for part in relative.parts):
             continue
-        if relative == Path('SHA256SUMS') or file.name.endswith(('.pyc', '.zip', '.log')):
+        if relative == Path('SHA256SUMS') or file.name.endswith(('.pyc', '.log')):
             continue
         if file.name == 'Test Asteroids Screensaver.desktop':
             continue  # Generated launchers contain paths for the build machine.

@@ -6,7 +6,8 @@ and native runtime build recipes.
 Original project code is now licensed under MIT (copyright 2026 dt23188).
 Standalone game folders and the bundled runtime include the license. Third-party
 libraries retain their upstream licenses. This is a licensing/package update;
-gameplay and executable binaries are unchanged.
+gameplay and executable binaries are unchanged. Offline runtime archives now
+retain Python’s required bundled standard-library ZIP.
 
 ## Downloads
 
