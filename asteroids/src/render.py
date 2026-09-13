@@ -290,6 +290,11 @@ def draw_enemy(cr, enemy, now):
     cr.scale(r / 29, r / 29)
     pulse = 0.65 + 0.35 * math.sin(now * 19)
     glow(cr, 0, 0, 45, color, 0.12)
+    if enemy.shield_remaining > 0:
+        cr.set_source_rgba(.3, .85, 1, .6)
+        cr.set_line_width(2)
+        cr.arc(0, 0, 39, 0, math.tau)
+        cr.stroke()
 
     def panel(points, light=1):
         path(cr, points)
@@ -805,8 +810,7 @@ def render(cr, world, width, height):
         cr.set_source_rgb(1, 1, 1)
         cr.arc(p.x, p.y, 1.8, 0, math.tau)
         cr.fill()
-    if world.saucer:
-        ufo = world.saucer
+    for ufo in world.enemies:
         p = screen(ufo.position)
         cr.save()
         cr.translate(p.x, p.y)

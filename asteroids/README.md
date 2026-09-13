@@ -15,6 +15,26 @@ Enemy engines have pulsing exhaust and travelling shock rings. Firing briefly
 illuminates each ship's forward hull, and blaster hits create contact sparks
 and a short expanding flash, including hits absorbed by player protection.
 
+Enemy fleets steer toward the player, circle at combat range, and predict
+asteroid crossings so they can turn away and shoot a path through the rocks.
+They also pursue nearby power-ups: shields protect them for eight seconds,
+missile pickups provide four homing rounds, and blasts break nearby asteroids
+without awarding player points. Warp cores remain available to the player.
+Occasional rival ships raid each territory: raiders enter ring territory,
+marauders enter raider territory, and ring ships enter marauder territory.
+Rival fleets unlock after the second completed warp jump (including the opening
+warp). Resident fleets travel in groups of three; rival groups contain two ships.
+Wingmates follow their leader in formation, leaving space between ships and
+breaking away to dodge asteroids. A surviving wingmate takes over if the leader
+is destroyed. Only one group from each faction is active at a time.
+Rival groups first arrive 22 seconds into eligible territory, then at 26–36
+second intervals when residents are present. Their visits last ten seconds. Both fleets prioritize opposing ships over the player, falling back
+to the player when no opposing ship remains. Fleet shots ignore their own
+faction, and fleet-on-fleet kills do not award player points.
+
+The player has two hit points per life, with 1.2 seconds of protection after
+the first hit.
+
 Fullscreen uses one world across all connected monitors, matching their desktop
 positions and logical sizes. The ship, projectiles and enemies can cross screen
 seams. On multiple monitors, camera travel expands toward the combined desktop's

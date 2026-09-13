@@ -123,8 +123,13 @@ class PhysicsTests(unittest.TestCase):
         world.destroy_ship()
         self.assertEqual(world.deaths, 1)
 
-    def test_hostile_shot_destroys_ship(self):
+    def test_hostile_shot_damages_ship(self):
         world = self.quiet()
+        world.shots = [Shot(Vec(-30, 0), Vec(1000, 0), hostile=True)]
+        world.step(0.05)
+        self.assertFalse(world.dead)
+        self.assertEqual(world.ship.hit_points, 1)
+        world.ship.invulnerable = 0
         world.shots = [Shot(Vec(-30, 0), Vec(1000, 0), hostile=True)]
         world.step(0.05)
         self.assertTrue(world.dead)

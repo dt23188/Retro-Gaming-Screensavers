@@ -22,6 +22,12 @@ FLEET_COLORS = {
     "marauder": (1.0, 0.28, 0.24),
 }
 
+# The occasional raiding faction in each fleet's territory.
+TERRITORY_RIVALS = {"ring": "raider", "raider": "marauder", "marauder": "ring"}
+RESIDENT_GROUP_SIZE = 3
+RIVAL_GROUP_SIZE = 2
+RIVAL_UNLOCK_WARPS = 2
+
 
 @dataclass
 class Vec:
@@ -114,6 +120,7 @@ class Shot:
     previous: Vec = field(default_factory=Vec)
     color: tuple | None = None
     missile: bool = False
+    faction: str | None = None
 
 
 @dataclass
@@ -151,6 +158,7 @@ class Ship:
     velocity: Vec = field(default_factory=lambda: Vec(119, -42.5))
     angle: float = -0.25
     thrust: bool = False
+    hit_points: int = 2
     invulnerable: float = 2.0
     muzzle_flash: float = 0.0
 
@@ -164,6 +172,8 @@ class Saucer:
     life: float = 13.5
     kind: str = "ring"
     muzzle_flash: float = 0.0
+    shield_remaining: float = 0.0
+    missile_ammo: int = 0
 
     @property
     def radius(self):
@@ -220,6 +230,8 @@ class World:
         self.rocks, self.shots, self.sparks = [], [], []
         self.sectors = OrderedDict()
         self.saucer = None
+        self.rival = None
+        self.rival_timer = 22.0
         self.saucer_timer = self.rng.uniform(3, 6)
         self.time = self.score = self.kills = 0
         self.dead = False
@@ -413,6 +425,8 @@ class World:
         self.ship.thrust = True
         self.rocks, self.parts, self.shots, self.sparks = [], [], [], []
         self.saucer = None
+        self.rival = None
+        self.rival_timer = 22.0
         self.shake = 0
         self.blast = None
         return True
@@ -486,6 +500,8 @@ class World:
         self.sectors.clear()
         self.rocks, self.parts, self.shots, self.sparks = [], [], [], []
         self.saucer = None
+        self.rival = None
+        self.rival_timer = 22.0
         self.saucer_timer = self.rng.uniform(2, 4)
         self.part_rng = random.Random(
             self.seed ^ self.session * 0xA511E9B3 ^ self.zone * 0x45D9F3B
@@ -576,6 +592,18 @@ class World:
                                      rng.uniform(65, 230), life, life, "impact", 2))
         self.sparks = self.sparks[-MAX_PARTICLES:]
 
+    def damage_ship(self):
+        if (self.dead or self.warp_remaining > 0 or self.ship.invulnerable > 0
+                or self.shield_remaining > 0):
+            return
+        self.ship.hit_points -= 1
+        if self.ship.hit_points <= 0:
+            self.destroy_ship()
+        else:
+            self.ship.invulnerable = 1.2
+            self.shake = max(self.shake, 10)
+            self.emit(self.ship.position, 20, velocity=self.ship.velocity * 0.4)
+
     def destroy_ship(self):
         if (
             self.dead
@@ -607,7 +635,7 @@ class World:
             distance = (relative + motion * t).length()
             if distance < rock.radius + 65 and relative.length() < 450:
                 hazards.append((distance, relative, rock.radius))
-        target = self.saucer
+        target = self.nearest_enemy(ship.position)
         candidates = [
             r for r in self.rocks if 85 < (r.position - ship.position).length() < 850
         ]
@@ -706,28 +734,64 @@ class World:
             and abs(position.y - camera.y) <= (height or self.height) / 2 + radius
         )
 
-    def destroy_enemy(self):
-        enemy = self.saucer
-        if enemy is None:
+    @property
+    def saucer(self):
+        """The resident leader; retained for single-ship callers and previews."""
+        return self.resident_fleet[0] if self.resident_fleet else None
+
+    @saucer.setter
+    def saucer(self, enemy):
+        self.resident_fleet = [] if enemy is None else [enemy]
+
+    @property
+    def rival(self):
+        return self.rival_fleet[0] if self.rival_fleet else None
+
+    @rival.setter
+    def rival(self, enemy):
+        self.rival_fleet = [] if enemy is None else [enemy]
+
+    @property
+    def enemies(self):
+        return self.resident_fleet + self.rival_fleet
+
+    def nearest_enemy(self, position, faction=None):
+        return min((enemy for enemy in self.enemies if enemy.kind != faction),
+                   key=lambda enemy: (enemy.position - position).length(), default=None)
+
+    def fleet_target(self, saucer):
+        # Rival fleets engage each other first, even when the player is closer.
+        return self.nearest_enemy(saucer.position, saucer.kind) or self.ship
+
+    def remove_enemy(self, enemy):
+        for fleet in (self.resident_fleet, self.rival_fleet):
+            # Remove this ship only; the next survivor naturally becomes leader.
+            fleet[:] = [member for member in fleet if member is not enemy]
+
+    def damage_enemy(self, enemy=None, award=True):
+        enemy = self.saucer if enemy is None else enemy
+        if enemy and enemy.shield_remaining <= 0:
+            self.destroy_enemy(enemy, award=award)
+
+    def destroy_enemy(self, enemy=None, award=True):
+        enemy = self.saucer if enemy is None else enemy
+        if enemy is None or not any(enemy is active for active in self.enemies):
             return
-        self.score += 1000 if enemy.small else 200
+        if award:
+            self.score += 1000 if enemy.small else 200
         self.emit(enemy.position, 45)
         if len(self.parts) < MAX_PARTS and self.rng.random() < 0.35:
             kind = self.rng.choices(
                 ["missile", "shield", "core", "blast"], [35, 35, 25, 5]
             )[0]
             self.parts.append(
-                CorePart(
-                    Vec(enemy.position.x, enemy.position.y),
-                    self.rng.uniform(0, TAU),
-                    self.time,
-                    kind,
-                )
+                CorePart(Vec(enemy.position.x, enemy.position.y),
+                         self.rng.uniform(0, TAU), self.time, kind)
             )
-        self.saucer = None
+        self.remove_enemy(enemy)
 
     def launch_missile(self):
-        enemy = self.saucer
+        enemy = self.nearest_enemy(self.ship.position)
         if (
             self.dead
             or self.warp_remaining > 0
@@ -737,7 +801,7 @@ class World:
             or not self.visible(enemy.position, enemy.radius)
         ):
             return False
-        if any(s.missile for s in self.shots):
+        if any(s.missile and not s.hostile for s in self.shots):
             return False
         nose = self.ship.position + direction(self.ship.angle) * 20
         heading = direction(self.ship.angle)
@@ -805,9 +869,9 @@ class World:
             s.hostile and (s.position - self.ship.position).length() < 220
             for s in self.shots
         )
-        enemy_close = (
-            self.saucer is not None
-            and (self.saucer.position - self.ship.position).length() < 220
+        enemy_close = any(
+            (enemy.position - self.ship.position).length() < 220
+            for enemy in self.enemies
         )
         if nearby or bullet_threat or enemy_close:
             self.activate_shield()
@@ -839,15 +903,10 @@ class World:
                 self.rocks_hit += 1
                 self.kills += 1
                 self.emit(rock.position, 8)
-        enemy = self.saucer
-        if (
-            enemy
-            and self.visible(
-                enemy.position, enemy.radius, wave.camera, wave.width, wave.height
-            )
-            and (enemy.position - wave.position).length() <= wave.radius + enemy.radius
-        ):
-            self.destroy_enemy()
+        for enemy in self.enemies:
+            if (self.visible(enemy.position, enemy.radius, wave.camera, wave.width, wave.height)
+                    and (enemy.position - wave.position).length() <= wave.radius + enemy.radius):
+                self.destroy_enemy(enemy)
         self.shots = [
             shot
             for shot in self.shots
@@ -867,52 +926,164 @@ class World:
             self.rng.shuffle(self.fleet_bag)
         return self.fleet_bag.pop()
 
+    def steer_saucer(self, saucer, dt):
+        pickup = min(
+            (p for p in self.parts if p.kind != "core"
+             and (p.position - saucer.position).length() < 700),
+            key=lambda p: (p.position - saucer.position).length(), default=None,
+        )
+        combat_target = self.fleet_target(saucer)
+        target = pickup.position if pickup else combat_target.position + combat_target.velocity * .6
+        relative = target - saucer.position
+        speed = 260 if saucer.small else 220
+        desired = relative.unit() * min(speed, relative.length() * 1.5)
+        if not pickup and relative.length() < 260:
+            # Circle at combat range rather than ram the player.
+            radial = relative.unit()
+            desired = Vec(-radial.y, radial.x) * (speed * .8) + radial * (
+                (relative.length() - 190) * 1.5)
+        fleet = next((fleet for fleet in (self.resident_fleet, self.rival_fleet)
+                      if any(member is saucer for member in fleet)), [saucer])
+        if len(fleet) > 1:
+            leader = fleet[0]
+            # Wingmates need spare speed to catch up after avoiding a rock.
+            speed = 200 if saucer is leader else 260
+            if saucer is not leader:
+                slot = next(i for i, member in enumerate(fleet) if member is saucer)
+                forward = leader.velocity.unit()
+                if leader.velocity.length() < 1:
+                    forward = (combat_target.position - leader.position).unit()
+                sideways = Vec(-forward.y, forward.x)
+                formation = leader.position - forward * 95 + sideways * (90 if slot % 2 else -90)
+                desired = leader.velocity + (formation - saucer.position) * 2
+            # Leave room for wingmates even when breaking formation to dodge.
+            for member in fleet:
+                if member is saucer:
+                    continue
+                away = saucer.position - member.position
+                distance = away.length()
+                if distance < 85:
+                    if distance < .01:
+                        away = Vec(0, 1 if saucer is leader else -1)
+                    desired = desired + away.unit() * ((85 - distance) * 5)
+        obstacle = None
+        urgency = float("inf")
+        for rock in self.rocks:
+            offset = rock.position - saucer.position
+            if offset.length() > 450:
+                continue
+            motion = rock.velocity - saucer.velocity
+            t = max(0, min(1.8, -offset.dot(motion) / max(motion.dot(motion), 1)))
+            clearance = rock.radius + saucer.radius + 45
+            if (offset + motion * t).length() < clearance:
+                if t < urgency:
+                    obstacle, urgency = rock, t
+                radial = offset.unit() if offset.length() > .01 else Vec(1, 0)
+                tangent = Vec(-radial.y, radial.x)
+                if tangent.dot(desired) < 0:
+                    tangent = tangent * -1
+                desired = desired + (tangent * 1.5 - radial) * (speed / (1 + t))
+        desired = desired.unit() * min(speed, desired.length())
+        change = desired - saucer.velocity
+        saucer.velocity = saucer.velocity + change.unit() * min(change.length(), 280 * dt)
+        return obstacle
+
+    def collect_enemy_parts(self, saucer, previous):
+        for part in list(self.parts):
+            # Warp cores belong to the player's progression.
+            if part.kind == "core" or segment_hit(
+                previous, saucer.position, part.position, saucer.radius + 16
+            ) is None:
+                continue
+            self.parts.remove(part)
+            self.emit(part.position, 8, "core")
+            if part.kind == "shield":
+                saucer.shield_remaining = 8.0
+            elif part.kind == "missile":
+                saucer.missile_ammo += 4
+            elif part.kind == "blast":
+                for rock in list(self.rocks):
+                    if (rock.position - saucer.position).length() < 300 + rock.radius:
+                        self.split_rock(rock, award=False)
+
+    def spawn_fleet_ship(self, kind, life=13.5):
+        side = self.rng.choice([-1, 1])
+        return Saucer(
+            self.camera + Vec(side * (self.width / 2 + 110),
+                              self.rng.uniform(-self.height * .35, self.height * .35)),
+            self.ship.velocity * .55 + Vec(-side * 190, self.rng.uniform(-35, 35)),
+            self.rng.random() < .4, kind=kind, life=life,
+        )
+
+    def spawn_fleet_group(self, kind, count, life=13.5):
+        leader = self.spawn_fleet_ship(kind, life)
+        fleet = [leader]
+        forward = leader.velocity.unit()
+        sideways = Vec(-forward.y, forward.x)
+        for slot in range(1, count):
+            position = leader.position - forward * 95 + sideways * (90 if slot % 2 else -90)
+            fleet.append(Saucer(
+                position, Vec(leader.velocity.x, leader.velocity.y),
+                self.rng.random() < .4, cooldown=1.2 + slot * .25,
+                kind=kind, life=life,
+            ))
+        return fleet
+
     def update_saucer(self, dt):
-        self.saucer_timer -= dt
-        if self.saucer is None and self.saucer_timer <= 0 and not self.dead:
-            side = self.rng.choice([-1, 1])
-            self.saucer = Saucer(
-                self.camera
-                + Vec(
-                    side * (self.width / 2 + 110),
-                    self.rng.uniform(-self.height * 0.35, self.height * 0.35),
-                ),
-                self.ship.velocity * 0.55 + Vec(-side * 190, self.rng.uniform(-35, 35)),
-                self.rng.random() < 0.4,
-                kind=self.zone_fleet,
-            )
-            self.saucer_timer = self.rng.uniform(4, 7)
-        if self.saucer is None:
+        if self.warp_remaining > 0:
             return
-        saucer = self.saucer
+        self.saucer_timer -= dt
+        if self.warps >= RIVAL_UNLOCK_WARPS:
+            self.rival_timer -= dt
+        if self.saucer is None and self.saucer_timer <= 0 and not self.dead:
+            self.resident_fleet = self.spawn_fleet_group(self.zone_fleet, RESIDENT_GROUP_SIZE)
+            self.saucer_timer = self.rng.uniform(4, 7)
+        # Rival squadrons unlock after two completed jumps and remain rarer
+        # than resident groups. Never replace a group while survivors remain.
+        if (self.warps >= RIVAL_UNLOCK_WARPS
+                and self.rival is None and self.rival_timer <= 0
+                and self.saucer is not None and not self.dead):
+            self.rival_fleet = self.spawn_fleet_group(
+                TERRITORY_RIVALS[self.zone_fleet], RIVAL_GROUP_SIZE, life=10)
+            self.rival_timer = self.rng.uniform(26, 36)
+        for saucer in self.enemies:
+            self.update_fleet_ship(saucer, dt)
+
+    def update_fleet_ship(self, saucer, dt):
+        obstacle = self.steer_saucer(saucer, dt)
+        previous = saucer.position
         saucer.position = saucer.position + saucer.velocity * dt
+        saucer.shield_remaining = max(0, saucer.shield_remaining - dt)
+        self.collect_enemy_parts(saucer, previous)
         saucer.life -= dt
         saucer.cooldown -= dt
         saucer.muzzle_flash = max(0, saucer.muzzle_flash - dt)
         if saucer.cooldown <= 0 and not self.dead:
-            heading = math.atan2(
-                self.ship.position.y - saucer.position.y,
-                self.ship.position.x - saucer.position.x,
-            )
-            heading += (
-                self.rng.uniform(-0.12, 0.12)
-                if saucer.small
-                else self.rng.uniform(-0.65, 0.65)
-            )
+            target = obstacle if obstacle in self.rocks else self.fleet_target(saucer)
+            missile = saucer.missile_ammo > 0 and isinstance(target, (Ship, Saucer))
+            aim = intercept(target.position - saucer.position, target.velocity,
+                            speed=600 if missile else 410)
+            heading = math.atan2(aim.y, aim.x)
+            if target is self.ship:
+                heading += self.rng.uniform(-.12, .12) if saucer.small else self.rng.uniform(-.35, .35)
+            if missile:
+                saucer.missile_ammo -= 1
             self.shots.append(
                 Shot(
                     Vec(saucer.position.x, saucer.position.y),
-                    direction(heading) * 410,
+                    direction(heading) * (600 if missile else 410),
                     2.8,
                     True,
                     Vec(saucer.position.x, saucer.position.y),
                     FLEET_COLORS[saucer.kind],
+                    missile=missile,
+                    faction=saucer.kind,
                 )
             )
             saucer.cooldown = 0.85 if saucer.small else 1.5
             saucer.muzzle_flash = .09
         if saucer.life <= 0:
-            self.saucer = None
+            self.remove_enemy(saucer)
 
     def step(self, dt):
         if dt <= 0:
@@ -990,93 +1161,51 @@ class World:
                 )
                 is not None
             ):
-                self.destroy_ship()
+                self.damage_ship()
         self.update_saucer(dt)
-        if (
-            self.saucer
-            and not self.dead
-            and (self.saucer.position - self.ship.position).length()
-            < self.saucer.radius + 10
+        if not self.dead and any(
+            (enemy.position - self.ship.position).length() < enemy.radius + 10
+            for enemy in self.enemies
         ):
-            self.destroy_ship()
+            self.damage_ship()
         for shot in list(self.shots):
-            if shot.missile and self.saucer:
-                desired = (self.saucer.position - shot.position).unit() * 850
-                shot.velocity = shot.velocity + (desired - shot.velocity) * min(
-                    1, dt * 4
-                )
+            if shot.missile:
+                target = self.nearest_enemy(shot.position, shot.faction)
+                if shot.hostile and (shot.faction is None or target is None):
+                    target = None if self.dead else self.ship
+                if target is not None:
+                    desired = (target.position - shot.position).unit() * (600 if shot.hostile else 850)
+                    shot.velocity = shot.velocity + (desired - shot.velocity) * min(1, dt * 4)
             shot.previous = shot.position
             shot.position = shot.position + shot.velocity * dt
             shot.life -= dt
-            if shot.missile:
-                enemy = self.saucer
-                if (
-                    enemy
-                    and segment_hit(
-                        shot.previous, shot.position, enemy.position, enemy.radius
-                    )
-                    is not None
-                ):
-                    self.destroy_enemy()
-                    shot.life = 0
-                # Missiles pass through all asteroids and never collide with them.
-            elif shot.hostile:
-                if (
-                    not self.dead
-                    and segment_hit(
-                        shot.previous, shot.position, self.ship.position, 12
-                    )
-                    is not None
-                ):
-                    self.destroy_ship()
-                    self.blaster_impact(shot, segment_hit(
-                        shot.previous, shot.position, self.ship.position, 12))
-                    shot.life = 0
-                elif shot.life > 0:
-                    hits = [
-                        (t, rock)
-                        for rock in self.rocks
-                        if (
-                            t := segment_hit(
-                                shot.previous,
-                                shot.position,
-                                rock.position,
-                                rock.radius * 0.88 + 2,
-                            )
-                        )
-                        is not None
-                    ]
-                    if hits:
-                        self.blaster_impact(shot, min(hits, key=lambda h: h[0])[0])
-                        self.split_rock(min(hits, key=lambda h: h[0])[1], award=False)
-                        shot.life = 0
-            else:
-                hits = []
+            hits = []
+            # Player missiles retain their ability to pass through asteroids.
+            if not shot.missile or shot.hostile:
                 for rock in self.rocks:
-                    t = segment_hit(
-                        shot.previous,
-                        shot.position,
-                        rock.position,
-                        rock.radius * 0.88 + 2,
-                    )
+                    t = segment_hit(shot.previous, shot.position, rock.position, rock.radius * .88 + 2)
                     if t is not None:
                         hits.append((t, rock))
-                saucer = self.saucer
-                st = (
-                    segment_hit(
-                        shot.previous, shot.position, saucer.position, saucer.radius
-                    )
-                    if saucer
-                    else None
-                )
-                if st is not None and (not hits or st < min(h[0] for h in hits)):
-                    self.blaster_impact(shot, st)
-                    self.destroy_enemy()
-                    shot.life = 0
-                elif hits:
-                    self.blaster_impact(shot, min(hits, key=lambda h: h[0])[0])
-                    self.split_rock(min(hits, key=lambda h: h[0])[1])
-                    shot.life = 0
+            for enemy in self.enemies:
+                if shot.hostile and (shot.faction is None or enemy.kind == shot.faction):
+                    continue
+                t = segment_hit(shot.previous, shot.position, enemy.position, enemy.radius)
+                if t is not None:
+                    hits.append((t, enemy))
+            if shot.hostile and not self.dead:
+                t = segment_hit(shot.previous, shot.position, self.ship.position, 12)
+                if t is not None:
+                    hits.append((t, self.ship))
+            if hits:
+                fraction, target = min(hits, key=lambda hit: hit[0])
+                if isinstance(target, Rock):
+                    self.split_rock(target, award=not shot.hostile)
+                elif isinstance(target, Saucer):
+                    self.damage_enemy(target, award=not shot.hostile)
+                else:
+                    self.damage_ship()
+                self.blaster_impact(shot, fraction)
+                shot.life = 0
         self.shots = [s for s in self.shots if s.life > 0][-32:]
         for spark in self.sparks:
             spark.position = spark.position + spark.velocity * dt
