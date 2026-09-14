@@ -8,9 +8,10 @@ class RotationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);bin=root/'.local/bin';bin.mkdir(parents=True)
             (root/'.config/omarchy').mkdir(parents=True)
+            (bin/'retro-screensaver-session.py').write_text(source.with_name('retro-screensaver-session.py').read_text())
             script=source.read_text().replace('$HOME',str(root)).replace('${XDG_RUNTIME_DIR:-/tmp}',str(root))
             dispatcher=bin/'retro-screensaver';dispatcher.write_text(script);dispatcher.chmod(0o755)
-            for name,body in {'pgrep':'exit 1','omarchy':'exit 1','omarchy-shell':'echo false',
+            for name,body in {'hyprctl':'exit 1','pgrep':'exit 1','omarchy':'exit 1','omarchy-shell':'echo false',
                               'omarchy-launch-snake-screensaver':'echo snake',
                               'retro-asteroids-screensaver':'echo asteroids',
                               'retro-pong-screensaver':'echo pong'}.items():

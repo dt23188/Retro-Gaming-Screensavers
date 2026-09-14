@@ -32,10 +32,14 @@ if [[ $game == rotation ]]; then
  esac
  printf '%s\n' "$game" > "$last_file"
 fi
+# Preserve pointer position for both blocking Qt games and async launchers.
+run_saver() {
+ exec python3 "$HOME/.local/bin/retro-screensaver-session.py" "$@"
+}
 case "$game" in
- classic-snake) exec "$HOME/.local/bin/omarchy-launch-snake-screensaver" "$@";;
- matrix) exec "$HOME/.local/bin/omarchy-launch-matrix-screensaver" "$@";;
- omarchy) exec /usr/share/omarchy/bin/omarchy-launch-screensaver "$@";;
+ classic-snake) run_saver "$HOME/.local/bin/omarchy-launch-snake-screensaver" "$@";;
+ matrix) run_saver "$HOME/.local/bin/omarchy-launch-matrix-screensaver" "$@";;
+ omarchy) run_saver /usr/share/omarchy/bin/omarchy-launch-screensaver "$@";;
 esac
 force=false
 args=()
@@ -47,4 +51,4 @@ if omarchy toggle enabled screensaver-off && [[ $force != true ]]; then exit 0; 
 if [[ $(omarchy-shell lock isLocked 2>/dev/null) == true ]]; then exit 0; fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/retro-screensaver-$UID.lock"
 flock -n 9 || exit 0
-exec "$HOME/.local/bin/retro-$game-screensaver" "${args[@]}"
+run_saver "$HOME/.local/bin/retro-$game-screensaver" "${args[@]}"
